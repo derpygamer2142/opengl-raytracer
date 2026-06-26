@@ -6,18 +6,18 @@
 in vec4 gl_FragCoord;
 in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 uniform float iTime;
 uniform vec2 iResolution;
-uniform sampler2D inputTexture;
+//uniform sampler2D inputTexture;
 #define OTHER
 
 #ifdef OTHER
 void main() {
 	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    //fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
-    fragColor = texture(inputTexture, texCoord);
+    fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
+    //fragColor = texture(inputTexture, texCoord);
 }
 #endif
 
