@@ -1,9 +1,9 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
-#include <fstream>
 #include <stb_image.h>
-#include <filesystem>
+#include "fileutil.h"
+#include "shader.h"
 using namespace std;
 
 float windowWidth = 800.0f;
@@ -18,24 +18,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 void processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
-}
-
-char* readFile(const char* name) {
-	ifstream file;
-	char* output;
-	file.open(name, ios::in | ios::binary);
-
-	if (file.is_open()) {
-		int filesize = std::filesystem::file_size(name);
-
-		output = new char[filesize+1]();
-		file.read(output, filesize);
-		output[filesize] = '\0';
-		//std::cout << "Read file:\n" << output << "\n\nFAFFASAWGJHNadwwdawdfawdH\n\n" << std::endl;
-		return output;
-	}
-	else std::cout << "Failed to open file '" << name << "'." << std::endl;
-	return 0;
 }
 
 int main() {
@@ -64,60 +46,12 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 
-
-	const char* vertexShaderSource = readFile("shaders/vertex.glsl");
-
-	unsigned int vertexShader;
-	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-	glCompileShader(vertexShader);
-	{
-		int success;
-		char infoLog[512];
-		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-			std::cout << "ERROR: Failed to compile vertex shader.\n" << infoLog << std::endl;
-		}
-	}
-
-	const char* fragmentShaderSource = readFile("shaders/fragment.glsl");
-	//std::cout << fragmentShaderSource << "\nwhat??????\n" << std::endl;
-
-	unsigned int fragmentShader;
-	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-	glCompileShader(fragmentShader);
-	{
-		int success;
-		char infoLog[512];
-		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-			std::cout << "ERROR: Failed to compile fragment shader.\n" << infoLog << std::endl;
-		}
-	}
-
-	
-	unsigned int shaderProgram;
-	shaderProgram = glCreateProgram();
-	glAttachShader(shaderProgram, vertexShader);
-	glAttachShader(shaderProgram, fragmentShader);
-	glLinkProgram(shaderProgram);
-
-	{
-		int success;
-		char infoLog[512];
-		glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-		if (!success) {
-			glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-			std::cout << "ERROR: Failed to link program.\n" << infoLog << std::endl;
-			return -1;
-		}
-	}
-
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
+	Shader vertexShader("shaders/vertex.glsl", GL_VERTEX_SHADER);
+	Shader fragmentShader("shaders/fragment.glsl", GL_FRAGMENT_SHADER);
+	Program shaderProgram;
+	shaderProgram.attachShader(vertexShader);
+	shaderProgram.attachShader(fragmentShader);
+	shaderProgram.link();
 
 	float vertices[] = {
 		1.0f, 1.0f, 0.0f,		1.0f, 1.0f,
@@ -130,15 +64,13 @@ int main() {
 		1, 2, 3
 	};
 	
-	/*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);*/
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	/*int width, height, nrChannels;
+	int width, height, nrChannels;
 	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load("assets/skibidi.jpg", &width, &height, &nrChannels, 0);
 	unsigned int texture;
@@ -147,7 +79,7 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(data);*/
+	stbi_image_free(data);
 
 	/*unsigned int frameBuffer, renderTexture;
 	glGenFramebuffers(1, &frameBuffer);
@@ -196,9 +128,6 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 	
-	int resolutionLocation = glGetUniformLocation(shaderProgram, "iResolution");
-	int timeLocation = glGetUniformLocation(shaderProgram, "iTime");
-	
 
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
@@ -206,11 +135,11 @@ int main() {
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		glUseProgram(shaderProgram);
-		glUniform1f(timeLocation, glfwGetTime());
-		glUniform2f(resolutionLocation, windowWidth, windowHeight);
-		//glActiveTexture(GL_TEXTURE0);
-		//glBindTexture(GL_TEXTURE_2D, texture);
+		shaderProgram.use();
+		shaderProgram.setUniform1f("iTime", glfwGetTime());
+		shaderProgram.setUniform2f("iResolution", windowWidth, windowHeight);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);

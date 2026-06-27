@@ -10,14 +10,18 @@ layout(location = 0) out vec4 fragColor;
 
 uniform float iTime;
 uniform vec2 iResolution;
-//uniform sampler2D inputTexture;
+uniform sampler2D inputTexture;
 #define OTHER
 
 #ifdef OTHER
 void main() {
 	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
-    //fragColor = texture(inputTexture, texCoord);
+    //fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
+    fragColor = mix(
+        texture(inputTexture, texCoord),
+        vec4((sin(gl_FragCoord.xy/iResolution + iTime*2.0)+1.0) / 2.0, sin(iTime*5.0), 1.0),
+        0.25f
+    );
 }
 #endif
 
