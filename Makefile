@@ -8,7 +8,7 @@ build/assets:
 	rm -rf build/assets
 	cp -r src/assets build
 
-build/shaders: src/shaders/fragment.glsl src/shaders/vertex.glsl
+build/shaders: src/shaders/fragment.glsl src/shaders/vertex.glsl src/shaders/textureoutput.glsl
 	mkdir -p build
 	rm -rf build/shaders
 	cp -r src/shaders build

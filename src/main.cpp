@@ -70,34 +70,16 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	int width, height, nrChannels;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load("assets/skibidi.jpg", &width, &height, &nrChannels, 0);
-	unsigned int texture;
-	glGenTextures(1, &texture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(data);
+	Texture skibidiToilet("assets/skibidi.jpg", 0);
+	Framebuffer testFramebuffer(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 0);
+	shaderProgram.setFrameBuffers({ testFramebuffer });
+	
+	Shader copyShader("shaders/textureoutput.glsl", GL_FRAGMENT_SHADER);
+	Program secondaryProgram;
+	secondaryProgram.attachShader(vertexShader);
+	secondaryProgram.attachShader(copyShader);
+	secondaryProgram.link();
 
-	/*unsigned int frameBuffer, renderTexture;
-	glGenFramebuffers(1, &frameBuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-	
-	glGenTextures(1, &renderTexture);
-	glBindTexture(GL_TEXTURE_2D, renderTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<int>(windowWidth), static_cast<int>(windowHeight), 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderTexture, 0);
-	unsigned int drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, drawBuffers);
-	
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		std::cout << "Error with framebuffer" << std::endl;
-		return -1;
-	}*/
 
 	unsigned int VAO, VBO;
 	glGenVertexArrays(1, &VAO);
@@ -131,6 +113,8 @@ int main() {
 
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
+		
+		shaderProgram.setRenderTarget(testFramebuffer);
 
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -138,10 +122,24 @@ int main() {
 		shaderProgram.use();
 		shaderProgram.setUniform1f("iTime", glfwGetTime());
 		shaderProgram.setUniform2f("iResolution", windowWidth, windowHeight);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
+		skibidiToilet.bindToSlot(0);
+		shaderProgram.setUniform1i("inputTexture", 0);
+		//shaderProgram.setUniformTexture("inputTexture", skibidiToilet);
+		
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		
+
+
+		secondaryProgram.resetRenderTarget(static_cast<int>(windowWidth), static_cast<int>(windowHeight));
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		secondaryProgram.use();
+		testFramebuffer.bindToTextureSlot(0);
+		secondaryProgram.setUniform1i("inputTexture", 0);
+		glBindVertexArray(VAO);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
 		glBindVertexArray(0);
 
 		glfwSwapBuffers(window);

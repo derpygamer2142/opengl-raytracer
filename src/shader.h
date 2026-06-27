@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <unordered_map>
+#include <stb_image.h>
 
 
 class Shader {
@@ -23,6 +24,32 @@ class Shader {
 };
 
 
+class Texture {
+    public:
+        int width, height, numChannels;
+        unsigned int textureid;
+        // Slot from 0-31
+        unsigned int textureSlot;
+
+        Texture(const char* path, unsigned int slot);
+
+        // Todo: Bindless?
+        void bindToSlot(unsigned int slot);
+};
+
+class Framebuffer {
+    public:
+        unsigned int renderTexture, frameBuffer;
+        unsigned int textureSlot,   attachmentSlot;
+        int width, height;
+        Framebuffer(int width, int height, unsigned int slot);
+        
+        void bindToTextureSlot(unsigned int slot);
+        // Todo: Resizing
+
+};
+
+
 class Program {
     public:
         unsigned int programid;
@@ -37,6 +64,13 @@ class Program {
 
         void use();
 
+        void setFrameBuffers(vector<Framebuffer> targets);
+
+        void setRenderTarget(Framebuffer target);
+
+        // Resets the target to be the screen
+        void resetRenderTarget(int width, int height);
+
         unsigned int uniformLocation(const char* uniform);
 
         void setUniform1f(const char* uniform, float value);
@@ -47,6 +81,11 @@ class Program {
 
         void setUniform4f(const char* uniform, float v0, float v1, float v2, float v3);
 
+        void setUniform1i(const char* uniform, int v0);
+
+        void setUniformTexture(const char* uniform, Texture tex);
+
+        void setUniformTexture(const char* uniform, Framebuffer fb);
 };
 
 #endif
