@@ -11,7 +11,8 @@ layout(location = 0) out vec4 fragColor;
 uniform float iTime;
 uniform vec2 iResolution;
 uniform sampler2D inputTexture;
-#define OTHER
+uniform float frameNumber;
+//#define OTHER
 
 #ifdef OTHER
 void main() {
@@ -39,10 +40,10 @@ vec2 hash22(vec2 p)
 
 
 
-#define ONESHOT
+//#define ONESHOT
 const float FOCALLENGTH = 350.0;
-const float NUMSAMPLES = 4.0;
-const float NEESAMPLES = 4.0;
+const float NUMSAMPLES = 8.0;
+const float NEESAMPLES = 8.0;
 // to doo doo:
 // add acryonosm like:
 // [] mis
@@ -229,7 +230,7 @@ vec3 calcBSDF(Intersection hit, vec3 incoming) {
 void main() {
     vec3 rd = normalize(vec3(fragCoord-iResolution.xy*0.5, FOCALLENGTH));
     vec3 ro = vec3(0.0);
-    fragColor = vec4(0.2);
+    fragColor = vec4(0.2, 0.2, 0.2, 1.0);
     
     Intersection hit = getIntersection(ro, rd);
     if (hit.hit) {
@@ -237,7 +238,7 @@ void main() {
             fragColor = vec4(1.0);
         }
         else {
-            fragColor = vec4(0.0);
+            fragColor = vec4(0.0, 0.0, 0.0, 1.0);
             ro = ro+rd*hit.dist*0.99;
             float accumulation = 0.0;
             for (float i = 1.0; i < NEESAMPLES+1.0; i += 1.0) {
@@ -269,8 +270,8 @@ void main() {
     
     
     #ifndef ONESHOT
-    float frame = max(texelFetch(iChannel1, ivec2(1.0,1.0), 0).r, 1.0);
-    fragColor = mix(texelFetch(iChannel0, ivec2(fragCoord), 0), fragColor, 1.0/frame);
+    vec4 t = texelFetch(inputTexture, ivec2(fragCoord), 0);
+    fragColor = mix(t, fragColor, 1.0/frameNumber);
     #endif
 }
 #endif

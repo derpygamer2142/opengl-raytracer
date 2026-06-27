@@ -8,6 +8,7 @@ using namespace std;
 
 float windowWidth = 800.0f;
 float windowHeight = 600.0f;
+float frameNumber = 1.0f;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -117,12 +118,13 @@ int main() {
 		shaderProgram.setRenderTarget(testFramebuffer);
 
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
 
 		shaderProgram.use();
 		shaderProgram.setUniform1f("iTime", glfwGetTime());
 		shaderProgram.setUniform2f("iResolution", windowWidth, windowHeight);
-		skibidiToilet.bindToSlot(0);
+		shaderProgram.setUniform1f("frameNumber", frameNumber);
+		//skibidiToilet.bindToSlot(0);
+		testFramebuffer.bindToTextureSlot(0);
 		shaderProgram.setUniform1i("inputTexture", 0);
 		//shaderProgram.setUniformTexture("inputTexture", skibidiToilet);
 		
@@ -132,7 +134,7 @@ int main() {
 
 
 		secondaryProgram.resetRenderTarget(static_cast<int>(windowWidth), static_cast<int>(windowHeight));
-		glClear(GL_COLOR_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT);
 
 		secondaryProgram.use();
 		testFramebuffer.bindToTextureSlot(0);
@@ -144,6 +146,7 @@ int main() {
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+		frameNumber += 1.0f;
 	}
 
 	glfwTerminate();
