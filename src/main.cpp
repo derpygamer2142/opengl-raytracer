@@ -27,8 +27,7 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	// glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-	// glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
 	GLFWwindow* window = glfwCreateWindow(static_cast<int>(windowWidth), static_cast<int>(windowHeight), "SKIBIDI TOILET!!!!!!!", NULL, NULL);
 	if (window == NULL) {
@@ -72,8 +71,9 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	Texture skibidiToilet("assets/skibidi.jpg", 0);
-	Framebuffer testFramebuffer(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 0);
-	shaderProgram.setFrameBuffers({ testFramebuffer });
+	Framebuffer framebuffer0(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 0, 0);
+	Framebuffer framebuffer1(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 1, 1);
+	//shaderProgram.setFrameBuffers({ framebuffer0, framebuffer1 });
 	
 	Shader copyShader("shaders/textureoutput.glsl", GL_FRAGMENT_SHADER);
 	Program secondaryProgram;
@@ -111,21 +111,22 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 	
+	bool swap = false;
 
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
 		
-		shaderProgram.setRenderTarget(testFramebuffer);
+		shaderProgram.setRenderTarget(swap ? framebuffer1 : framebuffer0);
 
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		//glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
 		shaderProgram.use();
 		shaderProgram.setUniform1f("iTime", glfwGetTime());
 		shaderProgram.setUniform2f("iResolution", windowWidth, windowHeight);
 		shaderProgram.setUniform1f("frameNumber", frameNumber);
 		//skibidiToilet.bindToSlot(0);
-		testFramebuffer.bindToTextureSlot(0);
-		shaderProgram.setUniform1i("inputTexture", 0);
+		// framebuffer1.bindToTextureSlot(0);
+		shaderProgram.setUniform1i("inputTexture", swap ? 0 : 1);
 		//shaderProgram.setUniformTexture("inputTexture", skibidiToilet);
 		
 		glBindVertexArray(VAO);
@@ -137,16 +138,18 @@ int main() {
 		//glClear(GL_COLOR_BUFFER_BIT);
 
 		secondaryProgram.use();
-		testFramebuffer.bindToTextureSlot(0);
-		secondaryProgram.setUniform1i("inputTexture", 0);
+		// framebuffer0.bindToTextureSlot(0);
+		secondaryProgram.setUniform1i("inputTexture", swap ? 0 : 1);
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
 		glBindVertexArray(0);
 
 		glfwSwapBuffers(window);
+		//swapFramebuffers(framebuffer0, framebuffer1);
 		glfwPollEvents();
 		frameNumber += 1.0f;
+		swap = !swap;
 	}
 
 	glfwTerminate();

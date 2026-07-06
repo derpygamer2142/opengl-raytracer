@@ -42,13 +42,11 @@ class Framebuffer {
         unsigned int renderTexture, frameBuffer;
         unsigned int textureSlot,   attachmentSlot;
         int width, height;
-        Framebuffer(int width, int height, unsigned int slot);
+        Framebuffer(int width, int height, unsigned int slot, unsigned int texSlot);
         
         void bindToTextureSlot(unsigned int slot);
         // Todo: Resizing
-
 };
-
 
 class Program {
     public:

@@ -55,12 +55,12 @@ void Texture::bindToSlot(unsigned int slot) {
     this->textureSlot = slot;
 }
 
-Framebuffer::Framebuffer(int width, int height, unsigned int slot) {
+Framebuffer::Framebuffer(int width, int height, unsigned int slot, unsigned int texSlot) {
 	glGenFramebuffers(1, &this->frameBuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 	
 	glGenTextures(1, &this->renderTexture);
-	glBindTexture(GL_TEXTURE_2D, this->renderTexture);
+    this->bindToTextureSlot(texSlot);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -73,6 +73,9 @@ Framebuffer::Framebuffer(int width, int height, unsigned int slot) {
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		std::cout << "Error with framebuffer" << std::endl;
 	}
+
+    this->width = width;
+    this->height = height;
 }
 
 void Framebuffer::bindToTextureSlot(unsigned int slot) {
@@ -113,7 +116,11 @@ void Program::setFrameBuffers(vector<Framebuffer> targets) {
 
 void Program::setRenderTarget(Framebuffer target) {
     glBindFramebuffer(GL_FRAMEBUFFER, target.frameBuffer);
+    unsigned int* s = new unsigned int[1]{ GL_COLOR_ATTACHMENT0 + target.attachmentSlot };
+    glDrawBuffers(1, s);
+    // std::cout << "Dimensions: " << target.width << ", " << target.height << "\n" << std::endl;
     glViewport(0, 0, target.width, target.height);
+    
 }
 void Program::resetRenderTarget(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
