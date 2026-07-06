@@ -1,7 +1,20 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
 #include <iostream>
 #include <stb_image.h>
+#include <filesystem>
+#include <cstring>
+
+// Stupid executable directory finding nonsense.
+#ifdef _WIN32
+	#include <libloaderapi.h>
+#elifdef __linux__
+	#include <libgen.h>
+	#include <linux/limits.h>
+#endif
+
+
 #include "fileutil.h"
 #include "shader.h"
 using namespace std;
@@ -21,7 +34,30 @@ void processInput(GLFWwindow* window) {
 		glfwSetWindowShouldClose(window, true);
 }
 
+unique_ptr<filesystem::path> getExecutablePath(void* main) {
+	#ifdef _WIN32
+		//std::cout << "WINDOWS!!!!!!!!!!!!!!!!!" << std::endl;
+		char path[1024];
+		GetModuleFileNameA(0, path, 1023);
+		return make_unique<filesystem::path>(filesystem::path(path).parent_path());
+	#elifdef __linux__
+		// from https://stackoverflow.com/a/23943306
+
+		filesystem::path result = filesystem::read_symlink("/proc/self/exe") ;
+		//std::cout << "AAAA " << result.parent_path() << std::endl;
+		return make_unique<filesystem::path>(result.parent_path());
+		
+		
+		string p = "ERROR";
+		return make_unique<filesystem::path>(p);
+	#else
+		string p = "Pound sand.";
+		return make_unique<filesystem::path>(p);
+	#endif
+}
+
 int main() {
+	unique_ptr<filesystem::path> CWD = getExecutablePath((void*) main);
 
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -46,8 +82,8 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 
-	Shader vertexShader("shaders/vertex.glsl", GL_VERTEX_SHADER);
-	Shader fragmentShader("shaders/fragment.glsl", GL_FRAGMENT_SHADER);
+	Shader vertexShader(*CWD.get() / "shaders/vertex.glsl", GL_VERTEX_SHADER);
+	Shader fragmentShader(*CWD.get() / "shaders/fragment.glsl", GL_FRAGMENT_SHADER);
 	Program shaderProgram;
 	shaderProgram.attachShader(vertexShader);
 	shaderProgram.attachShader(fragmentShader);
@@ -70,12 +106,12 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	Texture skibidiToilet("assets/skibidi.jpg", 0);
+	Texture skibidiToilet(*CWD.get() / "assets/skibidi.jpg", 0);
 	Framebuffer framebuffer0(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 0, 0);
 	Framebuffer framebuffer1(static_cast<int>(windowWidth), static_cast<int>(windowHeight), 1, 1);
 	//shaderProgram.setFrameBuffers({ framebuffer0, framebuffer1 });
 	
-	Shader copyShader("shaders/textureoutput.glsl", GL_FRAGMENT_SHADER);
+	Shader copyShader(*CWD.get() / "shaders/textureoutput.glsl", GL_FRAGMENT_SHADER);
 	Program secondaryProgram;
 	secondaryProgram.attachShader(vertexShader);
 	secondaryProgram.attachShader(copyShader);

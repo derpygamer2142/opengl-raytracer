@@ -7,6 +7,8 @@
 #include <vector>
 #include <unordered_map>
 #include <stb_image.h>
+#include <filesystem>
+using namespace std;
 
 
 class Shader {
@@ -16,6 +18,7 @@ class Shader {
         const char* filePath;
 
         Shader(const char* path, unsigned int type);
+        Shader(filesystem::path path, unsigned int type) : Shader(path.string().c_str(), type) {};
 
         const char* shaderTypeAsText();
     
@@ -32,6 +35,7 @@ class Texture {
         unsigned int textureSlot;
 
         Texture(const char* path, unsigned int slot);
+        Texture(filesystem::path path, unsigned int slot) :  Texture(path.string().c_str(), slot) {};
 
         // Todo: Bindless?
         void bindToSlot(unsigned int slot);
