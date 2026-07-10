@@ -96,6 +96,13 @@ void Program::attachShader(Shader shader) {
 
 void Program::link() {
     glLinkProgram(this->programid);
+    int success;
+    glGetProgramiv(this->programid, GL_LINK_STATUS, &success);
+    char infoLog[512];
+    if (!success) {
+        glGetProgramInfoLog(this->programid, 512, NULL, infoLog);
+        std::cout << "ERROR: Failed to link program.\n" << infoLog << std::endl;
+    }
 }
 
 void Program::use() {
@@ -155,8 +162,45 @@ void Program::setUniform4f(const char* uniform, float v0, float v1, float v2, fl
     glUniform4f(this->uniformLocation(uniform), v0, v1, v2, v3);
 }
 
+void Program::setUniform1fv(const char* uniform, vector<float> v) {
+    glUniform1fv(this->uniformLocation(uniform), v.size(), v.data());
+}
+
+void Program::setUniform2fv(const char* uniform, vector<float> v) {
+    glUniform2fv(this->uniformLocation(uniform), v.size()/2, v.data());
+}
+
+void Program::setUniform3fv(const char* uniform, vector<float> v) {
+    glUniform3fv(this->uniformLocation(uniform), v.size()/3, v.data());
+}
+
+void Program::setUniform4fv(const char* uniform, vector<float> v) {
+    glUniform4fv(this->uniformLocation(uniform), v.size(), v.data());
+}
+
 void Program::setUniform1i(const char* uniform, int v0) {
     glUniform1i(this->uniformLocation(uniform), v0);
+}
+
+void Program::setUniform1ui(const char* uniform, unsigned int v0) {
+    // std::cout << "Number of triangles: " << v0 << std::endl;
+    glUniform1ui(this->uniformLocation(uniform), v0);
+}
+
+void Program::setUniform1uiv(const char* uniform, vector<unsigned int> v) {
+    glUniform1uiv(this->uniformLocation(uniform), v.size(), v.data());
+}
+
+void Program::setUniform2uiv(const char* uniform, vector<unsigned int> v) {
+    glUniform2uiv(this->uniformLocation(uniform), v.size()/2, v.data());
+}
+
+void Program::setUniform3uiv(const char* uniform, vector<unsigned int> v) {
+    glUniform3uiv(this->uniformLocation(uniform), v.size()/3, v.data());
+}
+
+void Program::setUniform4uiv(const char* uniform, vector<unsigned int> v) {
+    glUniform4uiv(this->uniformLocation(uniform), v.size()/4, v.data());
 }
 
 void Program::setUniformTexture(const char* uniform, Texture tex) {

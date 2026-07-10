@@ -1,7 +1,8 @@
 #version 330 core
 
 #define fragCoord gl_FragCoord.xy
-
+#define MAX_VERTICES 256
+#define MAX_INDICES  256
 
 in vec4 gl_FragCoord;
 in vec2 texCoord;
@@ -12,17 +13,28 @@ uniform float iTime;
 uniform vec2 iResolution;
 uniform sampler2D inputTexture;
 uniform float frameNumber;
+
+uniform vec3 vertices[MAX_VERTICES];
+uniform uint indices[MAX_INDICES];
+uniform uint numTriangles;
+
 //#define OTHER
 
 #ifdef OTHER
 void main() {
 	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
     //fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
-    fragColor = mix(
+    /*fragColor = mix(
         texture(inputTexture, texCoord),
         vec4((sin(gl_FragCoord.xy/iResolution + iTime*2.0)+1.0) / 2.0, sin(iTime*5.0), 1.0),
         0.25f
-    );
+    );*/
+    if (indices[2] == 2u) {
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+    else {
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+    }
 }
 #endif
 
@@ -40,7 +52,7 @@ vec2 hash22(vec2 p)
 
 
 
-//#define ONESHOT
+#define ONESHOT
 const float FOCALLENGTH = 350.0;
 const float NUMSAMPLES = 8.0;
 const float NEESAMPLES = 8.0;
@@ -64,6 +76,21 @@ float sphIntersect( in vec3 ro, in vec3 rd, in vec3 ce, float ra )
     if (-b+h < 0.0) return -1.0;
     else if (-b-h < 0.0) return -b+h;
     else return -b-h;
+}
+
+vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 )
+{
+    vec3 v1v0 = v1 - v0;
+    vec3 v2v0 = v2 - v0;
+    vec3 rov0 = ro - v0;
+    vec3  n = cross( v1v0, v2v0 );
+    vec3  q = cross( rov0, rd );
+    float d = 1.0/dot( rd, n );
+    float u = d*dot( -q, v2v0 );
+    float v = d*dot(  q, v1v0 );
+    float t = d*dot( -n, rov0 );
+    if( u<0.0 || v<0.0 || (u+v)>1.0 ) t = -1.0;
+    return vec3( t, u, v );
 }
 
 struct Intersection {
@@ -115,6 +142,45 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
         }
     }
     
+    /*{
+        vec3 v0 = vertices[indices[0]];
+        vec3 v1 = vertices[indices[1]];
+        vec3 v2 = vertices[indices[2]];
+        vec3 t = triIntersect(ro, rd, v0, v1, v2);
+        if (t.x >= 0.0 && t.x < hit.dist) {
+            hit.hit = true;
+            hit.dist = t.x;
+            hit.normal = cross(normalize(v0-v1), normalize(v2-v1));
+            hit.color = vec3(1.0, 1.0, 0.0);
+            hit.roughness = 0.725;
+            hit.s = 0.5;
+            hit.ior = 1.5;
+            hit.ambient = 1.0;
+            hit.light = false;
+        }
+    }*/
+
+    {
+        for (uint i = 0u; i < numTriangles*3u; i += 3u) {
+            vec3 v0 = vertices[indices[i]];
+            vec3 v1 = vertices[indices[i+1u]];
+            vec3 v2 = vertices[indices[i+2u]];
+            vec3 t = triIntersect(ro, rd, v0, v1, v2);
+            if (t.x >= 0.0 && t.x < hit.dist) {
+                hit.hit = true;
+                hit.dist = t.x;
+                hit.normal = cross(normalize(v0-v1), normalize(v2-v1));
+                hit.color = vec3(0.0, 1.0, 0.0);
+                hit.roughness = 0.725;
+                hit.s = 0.5;
+                hit.ior = 1.5;
+                hit.ambient = 5.0;
+                hit.light = false;
+            }
+        }
+
+
+    }
     
     return hit;
 }
@@ -224,6 +290,7 @@ vec3 calcBSDF(Intersection hit, vec3 incoming) {
             /(4.0*dot(hit.normal,V))
         )*hit.color;
     //return hit.color*(1.0-hit.s)*dot(hit.normal, outward);
+    //return hit.color*clamp(dot(hit.normal, incoming), 0.0, 1.0);
 }
 
 

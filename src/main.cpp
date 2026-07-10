@@ -17,6 +17,8 @@
 
 #include "fileutil.h"
 #include "shader.h"
+#include "modelloader.h"
+
 using namespace std;
 
 float windowWidth = 800.0f;
@@ -58,6 +60,19 @@ unique_ptr<filesystem::path> getExecutablePath(void* main) {
 
 int main() {
 	unique_ptr<filesystem::path> CWD = getExecutablePath((void*) main);
+	
+	Model testModel = loadOBJ(*CWD.get() / "assets/cube.obj");
+	testModel.scale(25.0);
+	testModel.translate(0.0, 75.0, 200.0);
+	testModel.transform();
+
+	for (float p : testModel.final_vertices) {
+		std::cout << "V: " << p << std::endl;
+	}
+	for (float i : testModel.triangles) {
+		std::cout << "Index: " << i << std::endl;
+	}
+
 
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -147,6 +162,10 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 	
+
+
+
+
 	bool swap = false;
 
 	while (!glfwWindowShouldClose(window)) {
@@ -163,6 +182,10 @@ int main() {
 		//skibidiToilet.bindToSlot(0);
 		// framebuffer1.bindToTextureSlot(0);
 		shaderProgram.setUniform1i("inputTexture", swap ? 0 : 1);
+		shaderProgram.setUniform3fv("vertices", testModel.final_vertices);
+		shaderProgram.setUniform1uiv("indices", testModel.triangles);
+		shaderProgram.setUniform1ui("numTriangles", static_cast<unsigned int>(testModel.triangles.size()/3u));
+		//std::cout << "Triangle data: " << testModel.final_vertices.size() << ", " << testModel.triangles.size() << ", " << static_cast<unsigned int>(testModel.triangles.size()/3u) << std::endl;
 		//shaderProgram.setUniformTexture("inputTexture", skibidiToilet);
 		
 		glBindVertexArray(VAO);

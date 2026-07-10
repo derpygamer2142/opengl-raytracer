@@ -83,7 +83,19 @@ class Program {
 
         void setUniform4f(const char* uniform, float v0, float v1, float v2, float v3);
 
+        void setUniform1fv(const char* uniform, vector<float> v);
+        void setUniform2fv(const char* uniform, vector<float> v);
+        void setUniform3fv(const char* uniform, vector<float> v);
+        void setUniform4fv(const char* uniform, vector<float> v);
+
         void setUniform1i(const char* uniform, int v0);
+
+        void setUniform1ui(const char* uniform, unsigned int v0);
+
+        void setUniform1uiv(const char* uniform, vector<unsigned int> v);
+        void setUniform2uiv(const char* uniform, vector<unsigned int> v);
+        void setUniform3uiv(const char* uniform, vector<unsigned int> v);
+        void setUniform4uiv(const char* uniform, vector<unsigned int> v);
 
         void setUniformTexture(const char* uniform, Texture tex);
 
