@@ -146,6 +146,18 @@ unsigned int Program::uniformLocation(const char* uniform) {
     }
 }
 
+unsigned int Program::uniformBlockLocation(const char* block) {
+    try {
+        return this->blocks.at(block);
+    }
+    catch (std::out_of_range) {
+        unsigned int location = glGetUniformBlockIndex(this->programid, block);
+        // This is very strange.
+        this->blocks.insert(std::pair<const char*, unsigned int>(block, location));
+        return location;
+    }
+}
+
 void Program::setUniform1f(const char* uniform, float value) {
     glUniform1f(this->uniformLocation(uniform), value);
 }
@@ -209,4 +221,12 @@ void Program::setUniformTexture(const char* uniform, Texture tex) {
 
 void Program::setUniformTexture(const char* uniform, Framebuffer fb) {
     glUniform1i(this->uniformLocation(uniform), fb.textureSlot); // Todo: FIX!
+}
+
+void Program::setBlockBindPoint(const char* block, unsigned int point) {
+    glUniformBlockBinding(this->programid, this->uniformBlockLocation(block), point);
+}
+
+void Program::bindBufferToBlock(unsigned int buffer, unsigned int point) {
+    glBindBufferBase(GL_UNIFORM_BUFFER, point, buffer);
 }

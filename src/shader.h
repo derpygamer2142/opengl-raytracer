@@ -57,6 +57,7 @@ class Program {
         unsigned int programid;
         vector<Shader> shaders{};
         unordered_map<const char*, unsigned int> uniforms;
+        unordered_map<const char*, unsigned int> blocks;
 
         Program();
 
@@ -74,6 +75,7 @@ class Program {
         void resetRenderTarget(int width, int height);
 
         unsigned int uniformLocation(const char* uniform);
+        unsigned int uniformBlockLocation(const char* block);
 
         void setUniform1f(const char* uniform, float value);
 
@@ -100,6 +102,11 @@ class Program {
         void setUniformTexture(const char* uniform, Texture tex);
 
         void setUniformTexture(const char* uniform, Framebuffer fb);
+
+        void setBlockBindPoint(const char* block, unsigned int point);
+        
+        // Todo: Buffer abstractions?
+        void bindBufferToBlock(unsigned int buffer, unsigned int point);
 };
 
 #endif

@@ -1,8 +1,17 @@
-#version 330 core
+#version 460 core
+#extension GL_EXT_scalar_block_layout : require
 
 #define fragCoord gl_FragCoord.xy
-#define MAX_VERTICES 256
-#define MAX_INDICES  256
+#define MAX_VERTICES 2048
+#define MAX_INDICES  4096
+// 4.2+ todo: explicitly state binding point here
+layout (std430) uniform Triangles {
+    vec4 vertices[MAX_VERTICES]; // Actually vec3, but the wiki says not to use that
+    uint indices[MAX_INDICES];
+    uint numTriangles;
+};
+
+
 
 in vec4 gl_FragCoord;
 in vec2 texCoord;
@@ -14,9 +23,7 @@ uniform vec2 iResolution;
 uniform sampler2D inputTexture;
 uniform float frameNumber;
 
-uniform vec3 vertices[MAX_VERTICES];
-uniform uint indices[MAX_INDICES];
-uniform uint numTriangles;
+
 
 //#define OTHER
 
@@ -52,7 +59,7 @@ vec2 hash22(vec2 p)
 
 
 
-#define ONESHOT
+//#define ONESHOT
 const float FOCALLENGTH = 350.0;
 const float NUMSAMPLES = 8.0;
 const float NEESAMPLES = 8.0;
@@ -123,7 +130,7 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
             hit.roughness = 0.725;
             hit.s = 0.5;
             hit.ior = 1.5;
-            hit.ambient = 1.0;
+            hit.ambient = 0.75;
             hit.light = false;
         }
     }
@@ -162,9 +169,9 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
 
     {
         for (uint i = 0u; i < numTriangles*3u; i += 3u) {
-            vec3 v0 = vertices[indices[i]];
-            vec3 v1 = vertices[indices[i+1u]];
-            vec3 v2 = vertices[indices[i+2u]];
+            vec3 v0 = vertices[indices[i]].xyz;
+            vec3 v1 = vertices[indices[i+1u]].xyz;
+            vec3 v2 = vertices[indices[i+2u]].xyz;
             vec3 t = triIntersect(ro, rd, v0, v1, v2);
             if (t.x >= 0.0 && t.x < hit.dist) {
                 hit.hit = true;
@@ -174,7 +181,7 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
                 hit.roughness = 0.725;
                 hit.s = 0.5;
                 hit.ior = 1.5;
-                hit.ambient = 5.0;
+                hit.ambient = 0.4;
                 hit.light = false;
             }
         }
@@ -282,7 +289,8 @@ float NEE(vec3 ro, vec2 seed) {
 vec3 calcBSDF(Intersection hit, vec3 incoming) {
     vec3 V = -hit.rd;
     vec3 H = normalize(incoming + V);
-    return (hit.ambient +
+    // Todo: Only add ambient on light hit?
+    return (
             (1.0-hit.s)*dot(hit.normal, incoming) + hit.s*
             NDF(H, hit.normal, V, incoming, hit.roughness)
             *GAF(H, hit.normal, V, incoming, hit.roughness)
@@ -305,14 +313,15 @@ void main() {
             fragColor = vec4(1.0);
         }
         else {
-            fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            fragColor = vec4(hit.color*hit.ambient, 1.0);
             ro = ro+rd*hit.dist*0.99;
             float accumulation = 0.0;
             for (float i = 1.0; i < NEESAMPLES+1.0; i += 1.0) {
                 float nee = NEE(ro, fragCoord + ro.xy*i*250.0 + iTime*1025.0);
 
-                fragColor = vec4(hit.color*mix(accumulation, nee, 1.0/i), 1.0);
+                accumulation = mix(accumulation, nee, 1.0/i);
             }
+            fragColor += vec4(hit.color*accumulation, 0.0);
 
             
             

@@ -32,6 +32,9 @@ class Model {
         // Calculates the final positions of every vertex
         void transform();
 
+        // Because alignment
+        unsigned int getVec4(float** output);
+
         // Todo: Texture nonsense
 };
 

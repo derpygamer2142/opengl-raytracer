@@ -25,6 +25,10 @@ float windowWidth = 800.0f;
 float windowHeight = 600.0f;
 float frameNumber = 1.0f;
 
+// Must match fragment.glsl!
+#define MAX_VERTICES 2048
+#define MAX_INDICES 4096
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
 	windowWidth = static_cast<float>(width);
@@ -61,22 +65,26 @@ unique_ptr<filesystem::path> getExecutablePath(void* main) {
 int main() {
 	unique_ptr<filesystem::path> CWD = getExecutablePath((void*) main);
 	
-	Model testModel = loadOBJ(*CWD.get() / "assets/cube.obj");
+	Model testModel = loadOBJ(*CWD.get() / "assets/suzanne.obj");
 	testModel.scale(25.0);
 	testModel.translate(0.0, 75.0, 200.0);
 	testModel.transform();
-
-	for (float p : testModel.final_vertices) {
+	float* testModelVertices;
+	unsigned int testModelVertSize = testModel.getVec4(&testModelVertices);
+	std::cout << "#3" << std::endl;
+	std::cout << "Vertices: " << testModel.final_vertices.size() << std::endl;
+	std::cout << "Indices: "  << testModel.triangles.size() << std::endl;
+	/*for (float p : testModel.final_vertices) {
 		std::cout << "V: " << p << std::endl;
 	}
 	for (float i : testModel.triangles) {
 		std::cout << "Index: " << i << std::endl;
-	}
+	}*/
 
 
 	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
@@ -162,7 +170,17 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 	
-
+	unsigned int triangleData;
+	glGenBuffers(1, &triangleData);
+	glBindBuffer(GL_UNIFORM_BUFFER, triangleData);
+	// std430
+	// vec4 vertices[n0] -> n0*4*4
+	// uint indices[n1]  -> n1*4
+	// uint numTriangles -> 4
+	glBufferData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4, NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	shaderProgram.setBlockBindPoint("Triangles", 0);
+	shaderProgram.bindBufferToBlock(triangleData, 0);
 
 
 
@@ -182,9 +200,17 @@ int main() {
 		//skibidiToilet.bindToSlot(0);
 		// framebuffer1.bindToTextureSlot(0);
 		shaderProgram.setUniform1i("inputTexture", swap ? 0 : 1);
-		shaderProgram.setUniform3fv("vertices", testModel.final_vertices);
-		shaderProgram.setUniform1uiv("indices", testModel.triangles);
-		shaderProgram.setUniform1ui("numTriangles", static_cast<unsigned int>(testModel.triangles.size()/3u));
+		//shaderProgram.setUniform3fv("vertices", testModel.final_vertices);
+		//shaderProgram.setUniform1uiv("indices", testModel.triangles);
+		//shaderProgram.setUniform1ui("numTriangles", static_cast<unsigned int>(testModel.triangles.size()/3u));
+		glBindBuffer(GL_UNIFORM_BUFFER, triangleData);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, testModelVertSize*4, testModelVertices);
+		//std::cout << "Triangles: " << testModel.triangles.size() << std::endl;
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4, static_cast<unsigned int>(testModel.triangles.size())*4, testModel.triangles.data());
+		unsigned int numTriangles = static_cast<unsigned int>(testModel.triangles.size()/3u);
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4, 4, &numTriangles);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
 		//std::cout << "Triangle data: " << testModel.final_vertices.size() << ", " << testModel.triangles.size() << ", " << static_cast<unsigned int>(testModel.triangles.size()/3u) << std::endl;
 		//shaderProgram.setUniformTexture("inputTexture", skibidiToilet);
 		

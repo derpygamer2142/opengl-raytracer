@@ -9,7 +9,7 @@ vector<string> strsplit(string input, char delimeter) {
     
     while (getline(stream, temp, delimeter)) {
         val.push_back(temp);
-        std::cout << "Split item " << temp << std::endl;
+        //std::cout << "Split item " << temp << std::endl;
     }
 
     return val;
@@ -25,6 +25,7 @@ void Model::scale(float scale) {
     this->_scale = scale;
 }
 
+// Todo: Change this
 void Model::transform() {
     for (int i = 0; i < this->_vertices.size(); i += 3) {
         float v0 = this->_vertices[i];
@@ -47,6 +48,23 @@ void Model::transform() {
     }
 }
 
+unsigned int Model::getVec4(float** output) {
+    unsigned int size = (this->final_vertices.size()/3+1)*4;
+    float* temp = new float[size];
+    int j = 0;
+    for (int i = 0; i < size; i++) {
+        if ((i+1) % 4 == 0) temp[i] = 0.0f;
+        else {
+            temp[i] = this->final_vertices[j];
+            j++;
+        }
+    }
+    std::cout << "Got to this point" << std::endl;
+    *output = temp;
+    std::cout << "Past" << std::endl;
+    return size;
+}
+
 Model loadOBJ(filesystem::path path) {
     ifstream file;
     file.open(path);
@@ -61,7 +79,7 @@ Model loadOBJ(filesystem::path path) {
     Model model;
 
     while (getline(file, line)) {
-        std::cout << "Read line " << line << std::endl;
+        //std::cout << "Read line " << line << std::endl;
         vector<string> tokens = strsplit(line, ' ');
         if (tokens.size() < 1) continue;
 
@@ -73,7 +91,7 @@ Model loadOBJ(filesystem::path path) {
 
             for (int i = 1; i < 4; i++) {
                 model._vertices.push_back(stof(tokens[i])); // Convert tokens 1 through 3 to floats and add them to the vertex array
-                std::cout << "Append vertex" << std::endl;
+                //std::cout << "Append vertex" << std::endl;
             }
         }
 
@@ -87,7 +105,7 @@ Model loadOBJ(filesystem::path path) {
                 vector<string> face = strsplit(tokens[i], '/'); // This also has the texture coordinate, but that hasn't been implemented yet
 
                 model.triangles.push_back(static_cast<unsigned int>(stoul(face[0]) )-1u);
-                std::cout << "Append triangle" << std::endl;
+                //std::cout << "Append triangle" << std::endl;
             }
         }
     }
