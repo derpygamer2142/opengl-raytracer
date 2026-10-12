@@ -6,13 +6,30 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <memory>
 using namespace std;
 
 vector<string> strsplit(string input, char delimeter);
 
+struct Material {
+    std::unique_ptr<float[]> ambientColor; // 3 component vector
+    std::unique_ptr<float[]> diffuseColor;
+    float ior; // Ni in an mtl file
+    float roughness;
+    float metallic; // Todo
+    float sheen;    // Maybe todo?
+    float emission;
+    string name;
+    // Excluded: anisotropy, clear coat, normal map, specular color, transparency, illumination model
+};
+
 class Model {
     public:
         vector<unsigned int> triangles;
+        vector<unsigned int> triMaterials; // Which material a given triangle uses
+        // Wastes memory, but random lookup will be good when bvh's are added
+
+        vector<std::unique_ptr<Material>> materials;
 
         vector<float> _vertices;
         vector<float> final_vertices;
@@ -33,9 +50,12 @@ class Model {
         void transform();
 
         // Because alignment
-        unsigned int getVec4(float** output);
+        unsigned int genVertexBuffer(float** output);
+        unsigned int genMaterialBuffer(float** output);
 
         // Todo: Texture nonsense
+        void loadMTL(filesystem::path mtl);
+        void loadMTL(string mtl, filesystem::path path);
 };
 
 

@@ -4,13 +4,35 @@
 #define fragCoord gl_FragCoord.xy
 #define MAX_VERTICES 2048
 #define MAX_INDICES  4096
-// 4.2+ todo: explicitly state binding point here
-layout (std430) uniform Triangles {
-    vec4 vertices[MAX_VERTICES]; // Actually vec3, but the wiki says not to use that
-    uint indices[MAX_INDICES];
-    uint numTriangles;
+#define MAX_MATERIALS 128
+
+struct Material {
+    vec3 ambientColor;
+    vec3 diffuseColor;
+    float ior;
+    float roughness;
+    float metallic;
+    float sheen;
+    float emission;
 };
 
+// 4.2+ todo: explicitly state binding point here
+layout (std430) uniform ModelData {
+    vec4 vertices[MAX_VERTICES]; // Vec3 with the 4th component storing an index into the material list
+    uint indices[MAX_INDICES];
+    uint numTriangles;
+    Material materials[MAX_MATERIALS];
+};
+
+struct Intersection {
+    bool hit;
+    float dist;
+    vec3 normal;
+    vec3 ro;
+    vec3 rd;
+    bool light; // A repeat of a property but probably reduces weird read patterns
+    int mat; // Whether this is signed or not probably doesn't matter; there's no way we'll need 4 billion materials
+};
 
 
 in vec4 gl_FragCoord;
@@ -59,7 +81,7 @@ vec2 hash22(vec2 p)
 
 
 
-//#define ONESHOT
+#define ONESHOT
 const float FOCALLENGTH = 350.0;
 const float NUMSAMPLES = 8.0;
 const float NEESAMPLES = 8.0;
@@ -100,25 +122,11 @@ vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 )
     return vec3( t, u, v );
 }
 
-struct Intersection {
-    bool hit;
-    float dist;
-    vec3 normal;
-    vec3 ro;
-    vec3 rd;
-    vec3 color;
-    float roughness;
-    float s;
-    float ior;
-    float ambient;
-    bool light;
-};
-
 const vec3 lightpos = vec3(80.0, 65, 120.0);
 const float lightrad = 35.0;
 
 Intersection getIntersection(vec3 ro, vec3 rd) {
-    Intersection hit = Intersection(false, 9999.99, vec3(0.0), ro, rd, vec3(0.0), 0.0, 0.0, 0.0, 0.0, false);
+    Intersection hit = Intersection(false, 9999.99, vec3(0.0), ro, rd, false, -1);
     {
         const vec3 pos = vec3(0.0, 0.0, 200.0);
         float t = sphIntersect(ro, rd, pos, 75.0);
@@ -126,12 +134,8 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
             hit.hit = true;
             hit.dist = t;
             hit.normal = normalize((ro+rd*t)-pos);
-            hit.color = vec3(1.0);//vec3(0.000,0.616,1.000);
-            hit.roughness = 0.725;
-            hit.s = 0.5;
-            hit.ior = 1.5;
-            hit.ambient = 0.75;
             hit.light = false;
+            hit.mat = -1;
         }
     }
     {
@@ -140,12 +144,8 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
             hit.hit = true;
             hit.dist = t;
             hit.normal = normalize((ro+rd*t)-lightpos);
-            hit.color = vec3(1.000,1.000,1.000);
-            hit.roughness = 0.5;
-            hit.s = 0.5;
-            hit.ior = 1.0;
-            hit.ambient = 0.05;
             hit.light = true;
+            hit.mat = -2;
         }
     }
     
@@ -176,13 +176,9 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
             if (t.x >= 0.0 && t.x < hit.dist) {
                 hit.hit = true;
                 hit.dist = t.x;
+                hit.mat = int(vertices[indices[i]].w);
                 hit.normal = cross(normalize(v0-v1), normalize(v2-v1));
-                hit.color = vec3(0.0, 1.0, 0.0);
-                hit.roughness = 0.725;
-                hit.s = 0.5;
-                hit.ior = 1.5;
-                hit.ambient = 0.4;
-                hit.light = false;
+                hit.light = materials[hit.mat].emission > 0.0;
             }
         }
 
@@ -258,10 +254,11 @@ float GAF(vec3 H, vec3 N, vec3 V, vec3 L, float roughness) {
     float width = roughness*roughness;
     float tan_theta_v = tan(acos(dot(N,V))); // this also seems wrong
     
+    // Todo: this is missing a component
     return chi_plus(dot(V,H)/dot(V,N))*2.0/
         (1.0 + sqrt(1.0+width*width*tan_theta_v*tan_theta_v));
     /*
-    // the one from the cook-torrance paper
+    // Beckmann
     
     return min(1.0,
         min(2.0*dot(H,N)*dot(N,V)/dot(V,H),
@@ -271,6 +268,7 @@ float GAF(vec3 H, vec3 N, vec3 V, vec3 L, float roughness) {
 
 float FEF(vec3 H, vec3 V, float ior) {
     // schlick approximation
+    // GDC -19:25
     
     float f0 = (ior-1.)*(ior-1.)/((ior+1.)*(ior+1.));
     
@@ -282,21 +280,22 @@ float NEE(vec3 ro, vec2 seed) {
     vec3 rd = normalize(pos-ro);
     Intersection hit = getIntersection(ro, rd);
     if (hit.light) {
-        return hit.ambient*4.0*3.14159/hit.dist*hit.dist;
+        return materials[hit.mat].emission*4.0*3.14159/hit.dist*hit.dist;
     }
 }
 
-vec3 calcBSDF(Intersection hit, vec3 incoming) {
+vec3 calcBRDF(Intersection hit, vec3 incoming) {
     vec3 V = -hit.rd;
     vec3 H = normalize(incoming + V);
     // Todo: Only add ambient on light hit?
+    // Todo: is multiplying by hit.s incorrect? Should diffuse be multiplied by 1-FEF?
     return (
-            (1.0-hit.s)*dot(hit.normal, incoming) + hit.s*
-            NDF(H, hit.normal, V, incoming, hit.roughness)
-            *GAF(H, hit.normal, V, incoming, hit.roughness)
-            *FEF(H, V, hit.ior)
+            dot(hit.normal, incoming) +
+            NDF(H, hit.normal, V, incoming, materials[hit.mat].roughness)
+            *GAF(H, hit.normal, V, incoming, materials[hit.mat].roughness)
+            *FEF(H, V, materials[hit.mat].ior)
             /(4.0*dot(hit.normal,V))
-        )*hit.color;
+        )*materials[hit.mat].diffuseColor;
     //return hit.color*(1.0-hit.s)*dot(hit.normal, outward);
     //return hit.color*clamp(dot(hit.normal, incoming), 0.0, 1.0);
 }
@@ -304,16 +303,20 @@ vec3 calcBSDF(Intersection hit, vec3 incoming) {
 
 void main() {
     vec3 rd = normalize(vec3(fragCoord-iResolution.xy*0.5, FOCALLENGTH));
-    vec3 ro = vec3(0.0);
+    vec3 ro = vec3(0.0, 0.0, -35.0);
     fragColor = vec4(0.2, 0.2, 0.2, 1.0);
     
     Intersection hit = getIntersection(ro, rd);
     if (hit.hit) {
-        if (hit.light) {
+        vec3 l = normalize(vec3(1.0, 1.0, -1.0));
+        fragColor = vec4(vec3((dot(l, hit.normal)+1.0)/2.0), 1.0);
+        
+        /*if (hit.light) {
             fragColor = vec4(1.0);
         }
         else {
-            fragColor = vec4(hit.color*hit.ambient, 1.0);
+            Material mat = materials[hit.mat];
+            fragColor = vec4(mat.diffuseColor*mat.emission, 1.0);
             ro = ro+rd*hit.dist*0.99;
             float accumulation = 0.0;
             for (float i = 1.0; i < NEESAMPLES+1.0; i += 1.0) {
@@ -321,25 +324,25 @@ void main() {
 
                 accumulation = mix(accumulation, nee, 1.0/i);
             }
-            fragColor += vec4(hit.color*accumulation, 0.0);
+            fragColor += vec4(mat.diffuseColor*accumulation, 0.0);
 
             
             
             for (float i = 1.0; i < NUMSAMPLES+1.0; i += 1.0) {
-                vec3 incoming = hemisphereSample(fragCoord + iTime*1025.0*i + ro.xy, hit.normal, hit.roughness);//normalize(lightpos-(ro+rd*hit.dist*0.99));
+                vec3 incoming = hemisphereSample(fragCoord + iTime*1025.0*i + ro.xy, hit.normal, mat.roughness);//normalize(lightpos-(ro+rd*hit.dist*0.99));
                 
                 
                 Intersection next = getIntersection(ro,reflect(rd, incoming));
                 if (next.hit) {
                     vec3 hitColor = vec3(0.0);
-                    if (next.light) hitColor = calcBSDF(hit, incoming);
+                    if (next.light) hitColor = calcBRDF(hit, incoming);
                     
                     fragColor = mix(fragColor, vec4(hitColor,1.0), 1.0/i);
                 }
             }
             
 
-        }
+        }*/
         
     }
     

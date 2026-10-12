@@ -25,9 +25,10 @@ float windowWidth = 800.0f;
 float windowHeight = 600.0f;
 float frameNumber = 1.0f;
 
-// Must match fragment.glsl!
+// All of the below must match fragment.glsl!
 #define MAX_VERTICES 2048
 #define MAX_INDICES 4096
+#define MAX_MATERIALS 128
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -65,12 +66,14 @@ unique_ptr<filesystem::path> getExecutablePath(void* main) {
 int main() {
 	unique_ptr<filesystem::path> CWD = getExecutablePath((void*) main);
 	
-	Model testModel = loadOBJ(*CWD.get() / "assets/suzanne.obj");
-	testModel.scale(25.0);
-	testModel.translate(0.0, 75.0, 200.0);
+	Model testModel = loadOBJ(*CWD.get() / "assets/cornellbox.obj");
+	// testModel.scale(25.0);
+	// testModel.translate(0.0, 0.0, 0.0);
 	testModel.transform();
-	float* testModelVertices;
-	unsigned int testModelVertSize = testModel.getVec4(&testModelVertices);
+	float* testModelVertexBuffer;
+	unsigned int testModelVertSize = testModel.genVertexBuffer(&testModelVertexBuffer);
+	float* testModelMaterialBuffer;
+	unsigned int testModelMatSize  = testModel.genMaterialBuffer(&testModelMaterialBuffer);
 	std::cout << "#3" << std::endl;
 	std::cout << "Vertices: " << testModel.final_vertices.size() << std::endl;
 	std::cout << "Indices: "  << testModel.triangles.size() << std::endl;
@@ -170,17 +173,23 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 	
-	unsigned int triangleData;
-	glGenBuffers(1, &triangleData);
-	glBindBuffer(GL_UNIFORM_BUFFER, triangleData);
+	unsigned int modelData;
+	glGenBuffers(1, &modelData);
+	glBindBuffer(GL_UNIFORM_BUFFER, modelData);
 	// std430
 	// vec4 vertices[n0] -> n0*4*4
 	// uint indices[n1]  -> n1*4
 	// uint numTriangles -> 4
-	glBufferData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4, NULL, GL_STATIC_DRAW);
+	// PADDING -> Variable size depending on size of indices. See below.
+	// Material materials[n2] -> n2*48
+
+	int padding0 = 4*(3-(MAX_INDICES%4)); // Aligned to vec4
+
+
+	glBufferData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*48, NULL, GL_STATIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-	shaderProgram.setBlockBindPoint("Triangles", 0);
-	shaderProgram.bindBufferToBlock(triangleData, 0);
+	shaderProgram.setBlockBindPoint("ModelData", 0);
+	shaderProgram.bindBufferToBlock(modelData, 0);
 
 
 
@@ -203,12 +212,14 @@ int main() {
 		//shaderProgram.setUniform3fv("vertices", testModel.final_vertices);
 		//shaderProgram.setUniform1uiv("indices", testModel.triangles);
 		//shaderProgram.setUniform1ui("numTriangles", static_cast<unsigned int>(testModel.triangles.size()/3u));
-		glBindBuffer(GL_UNIFORM_BUFFER, triangleData);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, testModelVertSize*4, testModelVertices);
+		glBindBuffer(GL_UNIFORM_BUFFER, modelData);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, testModelVertSize*4, testModelVertexBuffer);
 		//std::cout << "Triangles: " << testModel.triangles.size() << std::endl;
 		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4, static_cast<unsigned int>(testModel.triangles.size())*4, testModel.triangles.data());
 		unsigned int numTriangles = static_cast<unsigned int>(testModel.triangles.size()/3u);
+		// std::cout << numTriangles << std::endl;
 		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4, 4, &numTriangles);
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4, testModelMatSize*4, testModelMaterialBuffer);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 		//std::cout << "Triangle data: " << testModel.final_vertices.size() << ", " << testModel.triangles.size() << ", " << static_cast<unsigned int>(testModel.triangles.size()/3u) << std::endl;

@@ -48,21 +48,140 @@ void Model::transform() {
     }
 }
 
-unsigned int Model::getVec4(float** output) {
+unsigned int Model::genVertexBuffer(float** output) {
     unsigned int size = (this->final_vertices.size()/3+1)*4;
     float* temp = new float[size];
     int j = 0;
     for (int i = 0; i < size; i++) {
-        if ((i+1) % 4 == 0) temp[i] = 0.0f;
+        // Todo: This is stupid and should be changed
+        if ((i+1) % 4 == 0) temp[i] = static_cast<float>(this->triMaterials[j/3]); // Material indices are stored in the w component
         else {
             temp[i] = this->final_vertices[j];
             j++;
         }
     }
-    std::cout << "Got to this point" << std::endl;
     *output = temp;
-    std::cout << "Past" << std::endl;
     return size;
+}
+
+unsigned int Model::genMaterialBuffer(float** output) {
+    // I used this calculator for std 430
+    // https://jackjamison.net/interactive/glsl-layout-calculator/
+    unsigned int size = this->materials.size() * 12; // There's a bunch of properties but just trust me bro
+    float* temp = new float[size];
+    int j = 0;
+    for (int i = 0; i < size; i += 12) {
+        Material* mat = this->materials[i/12].get();
+        for (int j = 0; j < 3; j++) temp[j] = mat->ambientColor[j]; // Float #3 is padding
+        for (int j = 4; j < 7; j++) temp[j] = mat->diffuseColor[j-4];
+        temp[7] = mat->ior;
+        temp[8] = mat->roughness;
+        temp[9] = mat->metallic;
+        temp[10] = mat->sheen;
+        temp[11] = mat->emission;
+    }
+    
+    *output = temp;
+    return size;
+}
+
+void Model::loadMTL(filesystem::path mtl) {
+    ifstream file;
+    file.open(mtl);
+    if (!file.is_open()) {
+        std::cout << "Failed to load MTL file." << std::endl;
+        return;
+    }
+    
+    std::unique_ptr<Material> mat = nullptr;
+
+    string line;
+    while (getline(file, line)) {
+        std::cout << "Line: "<< line << std::endl;
+        vector<string> tokens = strsplit(line, ' ');
+        if (tokens.size() < 1) continue;
+
+        if (tokens[0] == "newmtl") {
+            if (mat) {
+                this->materials.push_back(std::move(mat));
+            }
+            mat = std::make_unique<Material>();
+            mat->ambientColor = std::make_unique<float[]>(3);
+            mat->diffuseColor = std::make_unique<float[]>(3);
+            mat->emission = 0.0f;
+            mat->ior = 1.5f;
+            mat->metallic = 0.0f;
+            mat->roughness = 0.5f;
+            mat->sheen = 0.0f;
+            mat->name = "Unnamed Material";
+        }
+        else if (tokens[0] == "Ka") {
+            if (tokens.size() != 4) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            for (int i = 0; i < 3; i++) {
+                mat->ambientColor[i] = stof(tokens[i+1]);
+            }
+        }
+        else if (tokens[0] == "Kd") {
+            if (tokens.size() != 4) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            for (int i = 0; i < 3; i++) {
+                mat->diffuseColor[i] = stof(tokens[i+1]);
+            }
+        }
+        else if (tokens[0] == "Ke") {
+            if (tokens.size() != 4) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            float sum = 0.0f; // Only doing strength right now
+
+            for (int i = 1; i < 4; i++) {
+                sum += stof(tokens[i]);
+            }
+
+            mat->emission = sum/3.0f;
+        }
+        else if (tokens[0] == "Ni") {
+            if (tokens.size() != 2) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            mat->ior = stof(tokens[1]);
+        }
+        else if (tokens[0] == "Pm") {
+            if (tokens.size() != 2) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            mat->metallic = stof(tokens[1]);
+        }
+        else if (tokens[0] == "Pr") {
+            if (tokens.size() != 2) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            mat->roughness = stof(tokens[1]);
+        }
+        else if (tokens[0] == "Ps") {
+            if (tokens.size() != 2) {
+                std::cout << "Invalid number of tokens following " << tokens[0] << std::endl;
+            }
+
+            mat->sheen = stof(tokens[1]);
+        }
+        // todo: textures
+    }
+
+    if (mat) this->materials.push_back(std::move(mat));
+}
+
+void Model::loadMTL(string mtl, filesystem::path path) {
+    this->loadMTL(path.parent_path() / mtl);
 }
 
 Model loadOBJ(filesystem::path path) {
@@ -77,6 +196,7 @@ Model loadOBJ(filesystem::path path) {
     string line;
 
     Model model;
+    int currentMaterial = -1;
 
     while (getline(file, line)) {
         //std::cout << "Read line " << line << std::endl;
@@ -105,7 +225,24 @@ Model loadOBJ(filesystem::path path) {
                 vector<string> face = strsplit(tokens[i], '/'); // This also has the texture coordinate, but that hasn't been implemented yet
 
                 model.triangles.push_back(static_cast<unsigned int>(stoul(face[0]) )-1u);
+                model.triMaterials.push_back(currentMaterial);
                 //std::cout << "Append triangle" << std::endl;
+            }
+        }
+
+        else if (tokens[0] == "mtllib") {
+            // Note: this won't work if the mtl file has a space in the name
+            // One specification allows multiple file names
+            std::cout << "Loading mtl" << std::endl;
+            model.loadMTL(tokens[1], path);
+        }
+        else if (tokens[0] == "usemtl"){
+            currentMaterial = -1;
+            for (int i = 0; i < model.materials.size(); i++) {
+                if (model.materials[i]->name == tokens[1]) {
+                    currentMaterial = i;
+                    break;
+                }
             }
         }
     }
