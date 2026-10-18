@@ -45,29 +45,25 @@ uniform vec2 iResolution;
 uniform sampler2D inputTexture;
 uniform float frameNumber;
 
+// Modes:
+// 0 - Half-Lambert, no material
+// 1 - Half-Lambert, material
+// 2 - BRDF test mode, material
+// 3 - Pathtraced, material
+// 4 - Depth buffer view
+#define MODE 3
 
+// #define ONESHOT
+const float FOCALLENGTH = 350.0;
+const int NUMSAMPLES = 8;
+const int NEESAMPLES = 8;
+const int MAXBOUNCES = 2;
+// to doo doo:
+// add acryonosm like:
+// [] mis
+// [] nee
+// [] russian roulette (not an acyontm, add w/ stuff other than a ball)
 
-//#define OTHER
-
-#ifdef OTHER
-void main() {
-	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    //fragColor = vec4(gl_FragCoord.xy/iResolution, 0.0f, 1.0f);
-    /*fragColor = mix(
-        texture(inputTexture, texCoord),
-        vec4((sin(gl_FragCoord.xy/iResolution + iTime*2.0)+1.0) / 2.0, sin(iTime*5.0), 1.0),
-        0.25f
-    );*/
-    if (indices[2] == 2u) {
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    }
-    else {
-        fragColor = vec4(0.0, 1.0, 0.0, 1.0);
-    }
-}
-#endif
-
-#ifndef OTHER
 // Dave_Hoskins on shadertoy
 vec2 hash22(vec2 p)
 {
@@ -77,22 +73,7 @@ vec2 hash22(vec2 p)
 
 }
 
-
-
-
-
-#define ONESHOT
-const float FOCALLENGTH = 350.0;
-const float NUMSAMPLES = 8.0;
-const float NEESAMPLES = 8.0;
-// to doo doo:
-// add acryonosm like:
-// [] mis
-// [x] nee
-// [] russian roulette (not an acyontm, add w/ stuff other than a ball)
-
-
-// iq
+// Inigo Quilez, https://iquilezles.org/articles/intersectors/
 float sphIntersect( in vec3 ro, in vec3 rd, in vec3 ce, float ra )
 {
     vec3 oc = ro - ce;
@@ -177,7 +158,7 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
                 hit.hit = true;
                 hit.dist = t.x;
                 hit.mat = int(vertices[indices[i]].w);
-                hit.normal = cross(normalize(v0-v1), normalize(v2-v1));
+                hit.normal = cross(normalize(v1-v0), normalize(v2-v0));
                 hit.light = materials[hit.mat].emission > 0.0;
             }
         }
@@ -280,26 +261,30 @@ float NEE(vec3 ro, vec2 seed) {
     vec3 rd = normalize(pos-ro);
     Intersection hit = getIntersection(ro, rd);
     if (hit.light) {
-        return materials[hit.mat].emission*4.0*3.14159/hit.dist*hit.dist;
+        return materials[hit.mat].emission*4.0*3.14159/(hit.dist*hit.dist);
     }
 }
 
-vec3 calcBRDF(Intersection hit, vec3 incoming) {
-    vec3 V = -hit.rd;
+float calcBRDF(vec3 rd, vec3 normal, vec3 incoming, int matIndex) {
+    Material mat = materials[matIndex];
+    vec3 V = -rd;
     vec3 H = normalize(incoming + V);
     // Todo: Only add ambient on light hit?
     // Todo: is multiplying by hit.s incorrect? Should diffuse be multiplied by 1-FEF?
-    return (
-            dot(hit.normal, incoming) +
-            NDF(H, hit.normal, V, incoming, materials[hit.mat].roughness)
-            *GAF(H, hit.normal, V, incoming, materials[hit.mat].roughness)
-            *FEF(H, V, materials[hit.mat].ior)
-            /(4.0*dot(hit.normal,V))
-        )*materials[hit.mat].diffuseColor;
+    return 
+            dot(normal, incoming) +
+            NDF(H, normal, V, incoming, mat.roughness)
+            *GAF(H, normal, V, incoming, mat.roughness)
+            *FEF(H, V, mat.ior)
+            /(4.0*dot(normal,V));
     //return hit.color*(1.0-hit.s)*dot(hit.normal, outward);
     //return hit.color*clamp(dot(hit.normal, incoming), 0.0, 1.0);
 }
 
+
+#if (MODE < 3)
+const vec3 l = normalize(vec3(1.0, 1.0, -1.0));
+#endif
 
 void main() {
     vec3 rd = normalize(vec3(fragCoord-iResolution.xy*0.5, FOCALLENGTH));
@@ -308,9 +293,70 @@ void main() {
     
     Intersection hit = getIntersection(ro, rd);
     if (hit.hit) {
-        vec3 l = normalize(vec3(1.0, 1.0, -1.0));
-        fragColor = vec4(materials[hit.mat].diffuseColor*(dot(l, hit.normal)+1.0)/2.0, 1.0);
-        //fragColor = vec4(materials[hit.mat].diffuseColor,1.0);
+        #if (MODE == 0)
+            // Half-Lambert
+            fragColor = vec4(vec3((dot(l, hit.normal)+1.0)/2.0), 1.0);
+        #elif (MODE == 1)
+            // Half-Lambert with material.
+            fragColor = vec4(materials[hit.mat].diffuseColor*(dot(l, hit.normal)+1.0)/2.0, 1.0);
+        #elif (MODE == 2)
+            // BRDF test. Has an ambient lighting value of 0.5.
+            if (hit.light) {
+                fragColor = vec4(1.0);
+            }
+            else {
+                fragColor = vec4(materials[hit.mat].diffuseColor*calcBRDF(hit.rd, hit.normal, reflect(rd, l), hit.mat) + materials[hit.mat].diffuseColor*0.5, 1.0);
+            }
+        #elif (MODE == 3)
+            // Full pathtracing.
+            vec3 finalColor = vec3(0.0);
+
+            // Todo: Re-implement NEE. Holding off because it would require storing an array of lights.
+            /*vec3 neeColor = vec3(0.0);
+            for (int i = 0; i < NEESAMPLES; i++) {
+                neeColor += NEE(ro, fragCoord + ro.xy*i*250.0 + iTime*1025.0);
+            }*/
+
+            vec3 ptColor = vec3(0.0);
+            for (int i = 0; i < NUMSAMPLES; i++) {
+                vec3 incoming = hemisphereSample(fragCoord + iTime*1025.0*i + ro.xy, hit.normal, materials[hit.mat].roughness);
+                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat) * materials[hit.mat].diffuseColor;
+                int bounces = 0;
+
+                Intersection next = getIntersection(ro + hit.rd*hit.dist*0.999, reflect(hit.rd, incoming));
+                while (!next.light && next.hit && bounces < MAXBOUNCES) {
+                    accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
+
+                    if (bounces < MAXBOUNCES-1) {
+                        incoming = hemisphereSample(fragCoord + iTime*1025.0*i + next.ro.zx, next.normal, materials[next.mat].roughness);
+                        next = getIntersection(next.ro + next.rd*next.dist*0.999, reflect(next.rd, incoming));
+
+                    }
+
+                    bounces++;
+                }
+                if (next.light) {
+                    // Notes: Inverse square law should be implicit here(it's not in NEE though).
+                    // In Blender, emission represents a brightness value of 2^emission. Might be a good idea to do that here.
+                    accumulation *= pow(2.0, materials[next.mat].emission);
+                }
+                else {
+                    accumulation *= 4.0; // Ambient lighting
+                }
+                
+                ptColor += accumulation;
+            }
+
+            ptColor /= float(NUMSAMPLES);
+
+
+            finalColor = ptColor;
+
+            fragColor = vec4(finalColor, 1.0);
+        #elif (MODE == 4)
+            fragColor = vec4(vec3(hit.dist/1000.0), 1.0);
+        #endif
+
 
 
         /*if (hit.light) {
@@ -355,4 +401,3 @@ void main() {
     fragColor = mix(t, fragColor, 1.0/frameNumber);
     #endif
 }
-#endif
