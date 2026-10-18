@@ -49,17 +49,31 @@ void Model::transform() {
 }
 
 unsigned int Model::genVertexBuffer(float** output) {
-    unsigned int size = (this->final_vertices.size()/3+1)*4;
+    unsigned int size = (this->final_vertices.size()/3)*4;
     float* temp = new float[size];
-    int j = 0;
-    for (int i = 0; i < size; i++) {
-        // Todo: This is stupid and should be changed
-        if ((i+1) % 4 == 0) temp[i] = static_cast<float>(this->triMaterials[j/3]); // Material indices are stored in the w component
-        else {
-            temp[i] = this->final_vertices[j];
-            j++;
-        }
+
+
+    // Fill vertices
+    int vIndex = 0;
+    for (int i = 0; i < size; i += 4) {
+        temp[i] = this->final_vertices[vIndex];
+        temp[i+1] = this->final_vertices[vIndex+1];
+        temp[i+2] = this->final_vertices[vIndex+2];
+
+        vIndex += 3;
     }
+
+    // Material corresponds to the face, not the vertex
+    // We need to use the index buffer to figure out where to put the materials
+    int mIndex = 0;
+    for (int i = 0; i < this->triangles.size(); i++) {
+        int vIndex = this->triangles[i]*4;
+        temp[vIndex+3] = this->triMaterials[i/3];
+    }
+
+
+    std::cout << "Material list length: " << this->triMaterials.size() << ", index: " << mIndex << std::endl;
+
     *output = temp;
     return size;
 }
@@ -72,13 +86,13 @@ unsigned int Model::genMaterialBuffer(float** output) {
     int j = 0;
     for (int i = 0; i < size; i += 12) {
         Material* mat = this->materials[i/12].get();
-        for (int j = 0; j < 3; j++) temp[j] = mat->ambientColor[j]; // Float #3 is padding
-        for (int j = 4; j < 7; j++) temp[j] = mat->diffuseColor[j-4];
-        temp[7] = mat->ior;
-        temp[8] = mat->roughness;
-        temp[9] = mat->metallic;
-        temp[10] = mat->sheen;
-        temp[11] = mat->emission;
+        for (int j = 0; j < 3; j++) temp[i+j] = mat->ambientColor[j]; // Float #3 is padding
+        for (int j = 4; j < 7; j++) temp[i+j] = mat->diffuseColor[j-4];
+        temp[i+7] = mat->ior;
+        temp[i+8] = mat->roughness;
+        temp[i+9] = mat->metallic;
+        temp[i+10] = mat->sheen;
+        temp[i+11] = mat->emission;
     }
     
     *output = temp;
@@ -113,7 +127,7 @@ void Model::loadMTL(filesystem::path mtl) {
             mat->metallic = 0.0f;
             mat->roughness = 0.5f;
             mat->sheen = 0.0f;
-            mat->name = "Unnamed Material";
+            mat->name = tokens[1];
         }
         else if (tokens[0] == "Ka") {
             if (tokens.size() != 4) {
@@ -196,7 +210,7 @@ Model loadOBJ(filesystem::path path) {
     string line;
 
     Model model;
-    int currentMaterial = -1;
+    int currentMaterial = 0;
 
     while (getline(file, line)) {
         //std::cout << "Read line " << line << std::endl;
@@ -225,9 +239,9 @@ Model loadOBJ(filesystem::path path) {
                 vector<string> face = strsplit(tokens[i], '/'); // This also has the texture coordinate, but that hasn't been implemented yet
 
                 model.triangles.push_back(static_cast<unsigned int>(stoul(face[0]) )-1u);
-                model.triMaterials.push_back(currentMaterial);
                 //std::cout << "Append triangle" << std::endl;
             }
+            model.triMaterials.push_back(static_cast<unsigned int>(currentMaterial));
         }
 
         else if (tokens[0] == "mtllib") {
@@ -239,6 +253,7 @@ Model loadOBJ(filesystem::path path) {
         else if (tokens[0] == "usemtl"){
             currentMaterial = -1;
             for (int i = 0; i < model.materials.size(); i++) {
+                std::cout << "Checking " << model.materials[i]->name << ", " << tokens[1] << std::endl;
                 if (model.materials[i]->name == tokens[1]) {
                     currentMaterial = i;
                     break;

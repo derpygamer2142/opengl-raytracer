@@ -219,7 +219,7 @@ int main() {
 		unsigned int numTriangles = static_cast<unsigned int>(testModel.triangles.size()/3u);
 		// std::cout << numTriangles << std::endl;
 		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4, 4, &numTriangles);
-		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4, testModelMatSize*4, testModelMaterialBuffer);
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0, testModelMatSize*4, testModelMaterialBuffer);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 		//std::cout << "Triangle data: " << testModel.final_vertices.size() << ", " << testModel.triangles.size() << ", " << static_cast<unsigned int>(testModel.triangles.size()/3u) << std::endl;

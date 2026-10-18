@@ -309,8 +309,10 @@ void main() {
     Intersection hit = getIntersection(ro, rd);
     if (hit.hit) {
         vec3 l = normalize(vec3(1.0, 1.0, -1.0));
-        fragColor = vec4(vec3((dot(l, hit.normal)+1.0)/2.0), 1.0);
-        
+        fragColor = vec4(materials[hit.mat].diffuseColor*(dot(l, hit.normal)+1.0)/2.0, 1.0);
+        //fragColor = vec4(materials[hit.mat].diffuseColor,1.0);
+
+
         /*if (hit.light) {
             fragColor = vec4(1.0);
         }
