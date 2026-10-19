@@ -21,8 +21,8 @@
 
 using namespace std;
 
-float windowWidth = 800.0f;
-float windowHeight = 600.0f;
+float windowWidth = 900.0f;
+float windowHeight = 800.0f;
 float frameNumber = 1.0f;
 
 // All of the below must match fragment.glsl!
@@ -69,8 +69,8 @@ int main() {
 	unique_ptr<filesystem::path> CWD = getExecutablePath((void*) main);
 	
 	Model testModel = loadOBJ(*CWD.get() / "assets/cornellbox.obj");
-	// testModel.scale(25.0);
-	// testModel.translate(0.0, 0.0, 0.0);
+	testModel.scale(55.0);
+	testModel.translate(0.0, 0.0, 50.0);
 	testModel.transform();
 	float* testModelVertexBuffer;
 	unsigned int testModelVertSize = testModel.genVertexBuffer(&testModelVertexBuffer);

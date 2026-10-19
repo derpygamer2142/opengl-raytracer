@@ -57,10 +57,10 @@ uniform float frameNumber;
 #define MODE 3
 
 // #define ONESHOT
-const float FOCALLENGTH = 350.0;
+const float FOCALLENGTH = 550.0;
 const int NUMSAMPLES = 4;
 const int NEESAMPLES = 4;
-const int MAXBOUNCES = 2;
+const int MAXBOUNCES = 3;
 // to doo doo:
 // add acryonosm like:
 // [] mis
@@ -124,7 +124,7 @@ const float lightrad = 35.0;
 
 Intersection getIntersection(vec3 ro, vec3 rd) {
     Intersection hit = Intersection(false, 9999.99, vec3(0.0), ro, rd, false, -1);
-    {
+    /*{
         const vec3 pos = vec3(0.0, 0.0, 200.0);
         float t = sphIntersect(ro, rd, pos, 75.0);
         if (t >= 0.0 && t < hit.dist) {
@@ -144,7 +144,7 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
             hit.light = true;
             hit.mat = -2;
         }
-    }
+    }*/
     
     /*{
         vec3 v0 = vertices[indices[0]];
@@ -291,7 +291,7 @@ float FEF(vec3 H, vec3 V, float ior) {
 float NEE(vec3 ro, vec4 seed) {
     float neeColor = 0.0;
     for (int i = 0; i < NEESAMPLES; i++) {
-        uint lightIndex = 3*(lowbias32(uint(seed.x*151.0*(i+1) + seed.y*8493.0*(i+5) + (i+1)*seed.z*599.0)) % numLights); // Constants chosen at random
+        uint lightIndex = 3*(lowbias32(uint(i*seed.x + i*seed.y + i*seed.z)) % numLights); // Constants chosen at random
 
         vec3 pos = triSample(vec2(seed.x*123.0*(i+1) + seed.z*81.0*(i+5), seed.y*597.0*(i+1) + seed.w*67.0*(i+3)), lightIndex);
         vec3 rd = normalize(pos-ro);
@@ -330,7 +330,7 @@ const vec3 l = normalize(vec3(1.0, 1.0, -1.0));
 
 void main() {
     vec3 rd = normalize(vec3(fragCoord-iResolution.xy*0.5, FOCALLENGTH));
-    vec3 ro = vec3(0.0, 0.0, -35.0);
+    vec3 ro = vec3(0.0, 45.0, -55.0);
     fragColor = vec4(0.2, 0.2, 0.2, 1.0);
     
     Intersection hit = getIntersection(ro, rd);
@@ -353,66 +353,73 @@ void main() {
             // Full pathtracing.
             vec3 finalColor = vec3(0.0);
 
-            vec3 ptColor = vec3(0.0);
-            for (int i = 0; i < NUMSAMPLES; i++) {
-                vec3 incoming = hemisphereSample(
-                    vec2(
-                        fragCoord.x*1283.0*(i+1) + iTime*8025.0*(i+1) + rd.x*209.0,
-                        fragCoord.y*1927.0*(i+1) + iTime*1223.0*(i+1) + rd.z*593.0
-                    ),
-                    hit.normal, materials[hit.mat].roughness
-                );
-                //vec3 incoming = hemisphereSample(fragCoord*hit.dist*2867.0 + iTime*12025.0*i + rd.xy*283.0, hit.normal, materials[hit.mat].roughness);
-                //vec3 incoming = hemisphereSample(fragCoord*hit.dist + iTime*1025.0*float(i+1) + rd.xy*655.0, hit.normal, materials[hit.mat].roughness);
-                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat)
-                    * materials[hit.mat].diffuseColor
-                #if NEESAMPLES > 0
-                    * NEE(ro + hit.rd*hit.dist*0.999, vec4(fragCoord.x*8327.0*(i+1), iTime*6313.0*(i+1), fragCoord.y*4457.0*(i+1), hit.dist*451.0*(i+5) - hit.normal.z*182.0));
-                #else
-                    * 1.0;
-                #endif
-                int bounces = 0;
+            if (hit.light) {
+                finalColor = vec3(1.0);
+            }
+            else {
+                vec3 ptColor = vec3(0.0);
 
-                Intersection next = getIntersection(ro + hit.rd*hit.dist*0.999, reflect(hit.rd, incoming));
-                while (!next.light && next.hit && bounces < MAXBOUNCES) {
-                    accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
-
-                    
+                
+                for (int i = 0; i < NUMSAMPLES; i++) {
+                    vec3 incoming = hemisphereSample(
+                        vec2(
+                            fragCoord.x*1283.0*(i+1) + iTime*85.0*(i+1) + rd.x*209.0,
+                            fragCoord.y*1927.0*(i+1) + iTime*23.0*(i+1) + rd.z*593.0
+                        ),
+                        hit.normal, materials[hit.mat].roughness
+                    );
+                    //vec3 incoming = hemisphereSample(fragCoord*hit.dist*2867.0 + iTime*12025.0*i + rd.xy*283.0, hit.normal, materials[hit.mat].roughness);
+                    //vec3 incoming = hemisphereSample(fragCoord*hit.dist + iTime*1025.0*float(i+1) + rd.xy*655.0, hit.normal, materials[hit.mat].roughness);
+                    vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat)
+                        * materials[hit.mat].diffuseColor
                     #if NEESAMPLES > 0
-                        accumulation *= NEE(next.ro + hit.rd*hit.dist*0.999, vec4(iTime*1599.0*(i+1)*(bounces+1) + next.ro.x*1205.0*(i+1), fragCoord*5311.0*(i+1)*(bounces+1), next.rd.z*9247.0*(i+1)));
+                        * NEE(ro + hit.rd*hit.dist*0.9999, vec4(fragCoord.x*8327.0*(i+1), iTime*6313.0*(i+1), fragCoord.y*4457.0*(i+1), hit.dist*451.0*(i+5) - hit.normal.z*182.0));
+                    #else
+                        * 1.0;
                     #endif
+                    int bounces = 0;
+
+                    Intersection next = getIntersection(ro + hit.rd*hit.dist*0.9999, reflect(hit.rd, incoming));
+                    while (!next.light && next.hit && bounces < MAXBOUNCES) {
+                        accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
+
+                        
+                        #if NEESAMPLES > 0
+                            accumulation *= NEE(next.ro + hit.rd*hit.dist*0.9999, vec4(iTime*19.0*(i+1)*(bounces+1) + next.ro.x*1205.0*(i+1), fragCoord*5311.0*(i+1)*(bounces+1), next.rd.z*9247.0*(i+1)));
+                        #endif
 
 
-                    if (bounces < MAXBOUNCES-1) {
-                        incoming = hemisphereSample(
-                            vec2(
-                                fragCoord.x*6233.0*(i+1) + iTime*3025.0*(i+1)*(bounces+1) + next.ro.z*1203.0*(bounces+1),
-                                fragCoord.y*2847.0*(i+1)*(bounces+1) + next.rd.x*485.0*(i+1)*(bounces+1) + iTime*(i+1)*(bounces+1)
-                            ),
-                            next.normal, materials[next.mat].roughness
-                        );
-                        next = getIntersection(next.ro + next.rd*next.dist*0.999, reflect(next.rd, incoming));
+                        if (bounces < MAXBOUNCES-1) {
+                            incoming = hemisphereSample(
+                                vec2(
+                                    fragCoord.x*6233.0*(i+1) + iTime*25.0*(i+1)*(bounces+1) + next.ro.z*1203.0*(bounces+1),
+                                    fragCoord.y*2847.0*(i+1)*(bounces+1) + next.rd.x*485.0*(i+1)*(bounces+1) + iTime*(i+1)*(bounces+1)
+                                ),
+                                next.normal, materials[next.mat].roughness
+                            );
+                            next = getIntersection(next.ro + next.rd*next.dist*0.9999, reflect(next.rd, incoming));
 
+                        }
+
+                        bounces++;
                     }
-
-                    bounces++;
+                    
+                    // We don't add to the accumulation when we hit a light because we add energy every step from NEE.
+                    #if NEESAMPLES < 1
+                        if (!next.light) {
+                            accumulation *= 2.0;
+                        }
+                        else {
+                            accumulation *= pow(2.0, materials[next.mat].emission);
+                        }
+                    #endif
+                    
+                    ptColor += accumulation;
                 }
-                
-                // We don't add to the accumulation when we hit a light because we add energy every step from NEE.
-                #if NEESAMPLES < 1
-                    if (!next.light) {
-                        accumulation *= 2.0;
-                    }
-                    else {
-                        accumulation *= pow(2.0, materials[next.mat].emission);
-                    }
-                #endif
-                
-                ptColor += accumulation;
+
+                finalColor += ptColor/float(NUMSAMPLES);
             }
 
-
-            finalColor += ptColor/float(NUMSAMPLES);
 
             fragColor = vec4(finalColor, 1.0);
         #elif (MODE == 4)
