@@ -26,8 +26,9 @@ struct Material {
 class Model {
     public:
         vector<unsigned int> triangles;
-        vector<unsigned int> triMaterials; // Which material a given triangle uses
-        // Wastes memory, but random lookup will be good when bvh's are added
+        vector<unsigned int> triMaterials; // Which material a given triangle uses.
+        // Wastes memory, but random lookup will be good when bvh's are added.
+        vector<unsigned int> lights; // Array of triangles(same as the triangle list) that emit light.
 
         vector<std::unique_ptr<Material>> materials;
 

@@ -238,7 +238,10 @@ Model loadOBJ(filesystem::path path) {
             for (int i = 1; i < 4; i++) {
                 vector<string> face = strsplit(tokens[i], '/'); // This also has the texture coordinate, but that hasn't been implemented yet
 
-                model.triangles.push_back(static_cast<unsigned int>(stoul(face[0]) )-1u);
+                model.triangles.push_back(static_cast<unsigned int>(stoul(face[0])) - 1u);
+                if (model.materials[currentMaterial]->emission > 0.0) {
+                    model.lights.push_back(static_cast<unsigned int>(stoul(face[0])) - 1u);
+                }
                 //std::cout << "Append triangle" << std::endl;
             }
             model.triMaterials.push_back(static_cast<unsigned int>(currentMaterial));
@@ -251,7 +254,7 @@ Model loadOBJ(filesystem::path path) {
             model.loadMTL(tokens[1], path);
         }
         else if (tokens[0] == "usemtl"){
-            currentMaterial = -1;
+            currentMaterial = 0;
             for (int i = 0; i < model.materials.size(); i++) {
                 std::cout << "Checking " << model.materials[i]->name << ", " << tokens[1] << std::endl;
                 if (model.materials[i]->name == tokens[1]) {

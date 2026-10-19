@@ -5,6 +5,7 @@
 #define MAX_VERTICES 2048
 #define MAX_INDICES  4096
 #define MAX_MATERIALS 128
+#define MAX_LIGHTS 1024
 
 struct Material {
     vec3 ambientColor;
@@ -22,6 +23,8 @@ layout (std430) uniform ModelData {
     uint indices[MAX_INDICES];
     uint numTriangles;
     Material materials[MAX_MATERIALS];
+    uint lights[MAX_LIGHTS]; // Same as indices[], but only triangles with a nonzero emission.
+    uint numLights;
 };
 
 struct Intersection {
@@ -55,8 +58,8 @@ uniform float frameNumber;
 
 // #define ONESHOT
 const float FOCALLENGTH = 350.0;
-const int NUMSAMPLES = 8;
-const int NEESAMPLES = 8;
+const int NUMSAMPLES = 4;
+const int NEESAMPLES = 4;
 const int MAXBOUNCES = 2;
 // to doo doo:
 // add acryonosm like:
@@ -64,13 +67,26 @@ const int MAXBOUNCES = 2;
 // [] nee
 // [] russian roulette (not an acyontm, add w/ stuff other than a ball)
 
-// Dave_Hoskins on shadertoy
+// Dave_Hoskins, https://www.shadertoy.com/view/4djSRW
+// Note to self: always positive
 vec2 hash22(vec2 p)
 {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
     p3 += dot(p3, p3.yzx+33.33);
     return fract((p3.xx+p3.yz)*p3.zy);
 
+}
+
+// Chris Wellons, https://nullprogram.com/blog/2018/07/31/
+// Todo: This might be really slow on the CPU. Maybe eat the precision loss and use fract(sin())?
+uint lowbias32(uint x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
 }
 
 // Inigo Quilez, https://iquilezles.org/articles/intersectors/
@@ -200,7 +216,7 @@ vec3 hemisphereSample(vec2 seed, vec3 normal, float roughness) {
 }
 
 vec3 sphereSample(vec2 seed) {
-    // from https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations
+    // From https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations
     vec2 epsilon = hash22(seed);
     
     return vec3(
@@ -208,6 +224,22 @@ vec3 sphereSample(vec2 seed) {
         sin(2.0*3.14159*epsilon.y)*2.0*sqrt(epsilon.x*(1.0-epsilon.x)),
         1.0-2.0*epsilon.x
     );
+}
+
+// From https://pbr-book.org/4ed/Shapes/Triangle_Meshes#SampleUniformTriangle
+vec3 triSample(vec2 seed, uint index) {
+    vec2 epsilon = hash22(seed);
+
+    float b0, b1;
+    if (epsilon.x < epsilon.y) {
+        b0 = epsilon.x / 2;
+        b1 = epsilon.y - b0;
+    } else {
+        b1 = epsilon.y / 2;
+        b0 = epsilon.x - b1;
+    }
+
+    return vertices[index].xyz*b0 + vertices[index+1].xyz*b1 + vertices[index+2].xyz*(1 - b0 - b1);
 }
 
 float chi_plus(float a) {
@@ -256,13 +288,23 @@ float FEF(vec3 H, vec3 V, float ior) {
     return f0 + (1.-f0)*pow(1.-dot(V,H), 5.0);
 }
 
-float NEE(vec3 ro, vec2 seed) {
-    vec3 pos = lightrad*sphereSample(seed) + lightpos;
-    vec3 rd = normalize(pos-ro);
-    Intersection hit = getIntersection(ro, rd);
-    if (hit.light) {
-        return materials[hit.mat].emission*4.0*3.14159/(hit.dist*hit.dist);
+float NEE(vec3 ro, vec4 seed) {
+    float neeColor = 0.0;
+    for (int i = 0; i < NEESAMPLES; i++) {
+        uint lightIndex = 3*(lowbias32(uint(seed.x*151.0 + seed.y*8493.0 + (i+1)*seed.z*599.0)) % numLights); // Constants chosen at random
+
+        vec3 pos = triSample(seed.xy, lightIndex);
+        vec3 rd = normalize(pos-ro);
+        Intersection hit = getIntersection(ro, rd);
+        if (hit.light) {
+            neeColor += pow(2.0, materials[hit.mat].emission)*4.0*3.14159/(hit.dist*hit.dist);
+        }
+        else {
+            neeColor += 2.0;
+        }
     }
+
+    return neeColor/float(NEESAMPLES);
 }
 
 float calcBRDF(vec3 rd, vec3 normal, vec3 incoming, int matIndex) {
@@ -311,46 +353,48 @@ void main() {
             // Full pathtracing.
             vec3 finalColor = vec3(0.0);
 
-            // Todo: Re-implement NEE. Holding off because it would require storing an array of lights.
-            /*vec3 neeColor = vec3(0.0);
-            for (int i = 0; i < NEESAMPLES; i++) {
-                neeColor += NEE(ro, fragCoord + ro.xy*i*250.0 + iTime*1025.0);
-            }*/
-
             vec3 ptColor = vec3(0.0);
             for (int i = 0; i < NUMSAMPLES; i++) {
                 vec3 incoming = hemisphereSample(fragCoord + iTime*1025.0*i + ro.xy, hit.normal, materials[hit.mat].roughness);
-                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat) * materials[hit.mat].diffuseColor;
+                //vec3 incoming = hemisphereSample(fragCoord*hit.dist*2867.0 + iTime*12025.0*i + rd.xy*283.0, hit.normal, materials[hit.mat].roughness);
+                //vec3 incoming = hemisphereSample(fragCoord*hit.dist + iTime*1025.0*float(i+1) + rd.xy*655.0, hit.normal, materials[hit.mat].roughness);
+                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat) * materials[hit.mat].diffuseColor * NEE(ro + hit.rd*hit.dist*0.999, vec4(fragCoord.x*827.0, iTime*313.0, fragCoord.y*57.0, hit.dist*451.0));
                 int bounces = 0;
 
                 Intersection next = getIntersection(ro + hit.rd*hit.dist*0.999, reflect(hit.rd, incoming));
                 while (!next.light && next.hit && bounces < MAXBOUNCES) {
                     accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
 
+                    // Todo: Re-implement NEE. Holding off because it would require storing an array of lights.
+                    #if NEESAMPLES > 0
+                        accumulation *= NEE(next.ro + hit.rd*hit.dist*0.999, vec4(iTime*1599.0 + next.ro.x*1205.0, fragCoord.xy*5311.0, next.rd.z*9247.0));
+                    #endif
+
+
                     if (bounces < MAXBOUNCES-1) {
-                        incoming = hemisphereSample(fragCoord + iTime*1025.0*i + next.ro.zx, next.normal, materials[next.mat].roughness);
+                        incoming = hemisphereSample(fragCoord*1233.0 + iTime*3025.0*float(i+1) + next.ro.zx*1203.0, next.normal, materials[next.mat].roughness);
                         next = getIntersection(next.ro + next.rd*next.dist*0.999, reflect(next.rd, incoming));
 
                     }
 
                     bounces++;
                 }
-                if (next.light) {
-                    // Notes: Inverse square law should be implicit here(it's not in NEE though).
-                    // In Blender, emission represents a brightness value of 2^emission. Might be a good idea to do that here.
-                    accumulation *= pow(2.0, materials[next.mat].emission);
-                }
-                else {
-                    accumulation *= 4.0; // Ambient lighting
-                }
+                
+                // We don't add to the accumulation when we hit a light because we add energy every step from NEE.
+                #if NEESAMPLES < 1
+                    if (!next.light) {
+                        accumulation *= 2.0;
+                    }
+                    else {
+                        accumulation *= pow(2.0, materials[next.mat].emission);
+                    }
+                #endif
                 
                 ptColor += accumulation;
             }
 
-            ptColor /= float(NUMSAMPLES);
 
-
-            finalColor = ptColor;
+            finalColor += 0.5*ptColor/float(NUMSAMPLES);
 
             fragColor = vec4(finalColor, 1.0);
         #elif (MODE == 4)

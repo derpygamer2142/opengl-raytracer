@@ -29,6 +29,8 @@ float frameNumber = 1.0f;
 #define MAX_VERTICES 2048
 #define MAX_INDICES 4096
 #define MAX_MATERIALS 128
+#define MAX_LIGHTS 1024
+#define MAX_NOISE 1024
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -182,16 +184,20 @@ int main() {
 	// uint numTriangles -> 4
 	// PADDING -> Variable size depending on size of indices. See below.
 	// Material materials[n2] -> n2*48
+	// uint lights[n3] -> n3*4
+	// uint numLights -> 4
+	// uint noise[n4] -> n4*4
 
 	int padding0 = 4*(3-(MAX_INDICES%4)); // Aligned to vec4
 
 
-	glBufferData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*48, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*48 + MAX_LIGHTS*4 + 4, NULL, GL_STATIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	shaderProgram.setBlockBindPoint("ModelData", 0);
 	shaderProgram.bindBufferToBlock(modelData, 0);
 
-
+	unsigned int noise[MAX_NOISE];
+	srand(time(NULL));
 
 	bool swap = false;
 
@@ -212,14 +218,24 @@ int main() {
 		//shaderProgram.setUniform3fv("vertices", testModel.final_vertices);
 		//shaderProgram.setUniform1uiv("indices", testModel.triangles);
 		//shaderProgram.setUniform1ui("numTriangles", static_cast<unsigned int>(testModel.triangles.size()/3u));
+
+		for (int i = 0; i < MAX_NOISE; i++) {
+			// Fill the noise buffer
+			noise[i] = static_cast<unsigned int>(rand());
+		}
+
 		glBindBuffer(GL_UNIFORM_BUFFER, modelData);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, testModelVertSize*4, testModelVertexBuffer);
 		//std::cout << "Triangles: " << testModel.triangles.size() << std::endl;
-		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4, static_cast<unsigned int>(testModel.triangles.size())*4, testModel.triangles.data());
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4, static_cast<unsigned int>(testModel.triangles.size())*4u, testModel.triangles.data());
 		unsigned int numTriangles = static_cast<unsigned int>(testModel.triangles.size()/3u);
 		// std::cout << numTriangles << std::endl;
 		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4, 4, &numTriangles);
 		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0, testModelMatSize*4, testModelMaterialBuffer);
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*4, static_cast<unsigned int>(testModel.lights.size())*4u, testModel.lights.data());
+		unsigned int numLights = static_cast<unsigned int>(testModel.lights.size())/3u;
+		glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*4 + MAX_LIGHTS*4, 4u, &numLights);
+		// glBufferSubData(GL_UNIFORM_BUFFER, MAX_VERTICES*4*4 + MAX_INDICES*4 + 4 + padding0 + MAX_MATERIALS*4 + MAX_LIGHTS*4 + 4u, MAX_NOISE*4u, noise);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 		//std::cout << "Triangle data: " << testModel.final_vertices.size() << ", " << testModel.triangles.size() << ", " << static_cast<unsigned int>(testModel.triangles.size()/3u) << std::endl;
