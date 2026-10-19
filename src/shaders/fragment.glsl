@@ -291,16 +291,16 @@ float FEF(vec3 H, vec3 V, float ior) {
 float NEE(vec3 ro, vec4 seed) {
     float neeColor = 0.0;
     for (int i = 0; i < NEESAMPLES; i++) {
-        uint lightIndex = 3*(lowbias32(uint(seed.x*151.0 + seed.y*8493.0 + (i+1)*seed.z*599.0)) % numLights); // Constants chosen at random
+        uint lightIndex = 3*(lowbias32(uint(seed.x*151.0*(i+1) + seed.y*8493.0*(i+5) + (i+1)*seed.z*599.0)) % numLights); // Constants chosen at random
 
-        vec3 pos = triSample(seed.xy, lightIndex);
+        vec3 pos = triSample(vec2(seed.x*123.0*(i+1) + seed.z*81.0*(i+5), seed.y*597.0*(i+1) + seed.w*67.0*(i+3)), lightIndex);
         vec3 rd = normalize(pos-ro);
         Intersection hit = getIntersection(ro, rd);
         if (hit.light) {
             neeColor += pow(2.0, materials[hit.mat].emission)*4.0*3.14159/(hit.dist*hit.dist);
         }
         else {
-            neeColor += 2.0;
+            neeColor += 0.0;
         }
     }
 
@@ -355,24 +355,42 @@ void main() {
 
             vec3 ptColor = vec3(0.0);
             for (int i = 0; i < NUMSAMPLES; i++) {
-                vec3 incoming = hemisphereSample(fragCoord + iTime*1025.0*i + ro.xy, hit.normal, materials[hit.mat].roughness);
+                vec3 incoming = hemisphereSample(
+                    vec2(
+                        fragCoord.x*1283.0*(i+1) + iTime*8025.0*(i+1) + rd.x*209.0,
+                        fragCoord.y*1927.0*(i+1) + iTime*1223.0*(i+1) + rd.z*593.0
+                    ),
+                    hit.normal, materials[hit.mat].roughness
+                );
                 //vec3 incoming = hemisphereSample(fragCoord*hit.dist*2867.0 + iTime*12025.0*i + rd.xy*283.0, hit.normal, materials[hit.mat].roughness);
                 //vec3 incoming = hemisphereSample(fragCoord*hit.dist + iTime*1025.0*float(i+1) + rd.xy*655.0, hit.normal, materials[hit.mat].roughness);
-                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat) * materials[hit.mat].diffuseColor * NEE(ro + hit.rd*hit.dist*0.999, vec4(fragCoord.x*827.0, iTime*313.0, fragCoord.y*57.0, hit.dist*451.0));
+                vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat)
+                    * materials[hit.mat].diffuseColor
+                #if NEESAMPLES > 0
+                    * NEE(ro + hit.rd*hit.dist*0.999, vec4(fragCoord.x*8327.0*(i+1), iTime*6313.0*(i+1), fragCoord.y*4457.0*(i+1), hit.dist*451.0*(i+5) - hit.normal.z*182.0));
+                #else
+                    * 1.0;
+                #endif
                 int bounces = 0;
 
                 Intersection next = getIntersection(ro + hit.rd*hit.dist*0.999, reflect(hit.rd, incoming));
                 while (!next.light && next.hit && bounces < MAXBOUNCES) {
                     accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
 
-                    // Todo: Re-implement NEE. Holding off because it would require storing an array of lights.
+                    
                     #if NEESAMPLES > 0
-                        accumulation *= NEE(next.ro + hit.rd*hit.dist*0.999, vec4(iTime*1599.0 + next.ro.x*1205.0, fragCoord.xy*5311.0, next.rd.z*9247.0));
+                        accumulation *= NEE(next.ro + hit.rd*hit.dist*0.999, vec4(iTime*1599.0*(i+1)*(bounces+1) + next.ro.x*1205.0*(i+1), fragCoord*5311.0*(i+1)*(bounces+1), next.rd.z*9247.0*(i+1)));
                     #endif
 
 
                     if (bounces < MAXBOUNCES-1) {
-                        incoming = hemisphereSample(fragCoord*1233.0 + iTime*3025.0*float(i+1) + next.ro.zx*1203.0, next.normal, materials[next.mat].roughness);
+                        incoming = hemisphereSample(
+                            vec2(
+                                fragCoord.x*6233.0*(i+1) + iTime*3025.0*(i+1)*(bounces+1) + next.ro.z*1203.0*(bounces+1),
+                                fragCoord.y*2847.0*(i+1)*(bounces+1) + next.rd.x*485.0*(i+1)*(bounces+1) + iTime*(i+1)*(bounces+1)
+                            ),
+                            next.normal, materials[next.mat].roughness
+                        );
                         next = getIntersection(next.ro + next.rd*next.dist*0.999, reflect(next.rd, incoming));
 
                     }
@@ -394,7 +412,7 @@ void main() {
             }
 
 
-            finalColor += 0.5*ptColor/float(NUMSAMPLES);
+            finalColor += ptColor/float(NUMSAMPLES);
 
             fragColor = vec4(finalColor, 1.0);
         #elif (MODE == 4)
