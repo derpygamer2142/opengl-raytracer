@@ -58,13 +58,13 @@ uniform float frameNumber;
 
 // #define ONESHOT
 const float FOCALLENGTH = 550.0;
-const int NUMSAMPLES = 4;
-const int NEESAMPLES = 4;
-const int MAXBOUNCES = 3;
+const int NUMSAMPLES = 6;
+const int NEESAMPLES = 6;
+const int MAXBOUNCES = 2;
 // to doo doo:
 // add acryonosm like:
 // [] mis
-// [] nee
+// [x] nee
 // [] russian roulette (not an acyontm, add w/ stuff other than a ball)
 
 // Dave_Hoskins, https://www.shadertoy.com/view/4djSRW
@@ -78,7 +78,7 @@ vec2 hash22(vec2 p)
 }
 
 // Chris Wellons, https://nullprogram.com/blog/2018/07/31/
-// Todo: This might be really slow on the CPU. Maybe eat the precision loss and use fract(sin())?
+// Todo: This might be really slow on the GPU. Maybe eat the precision loss and use fract(sin())?
 uint lowbias32(uint x)
 {
     x ^= x >> 16;
@@ -118,9 +118,6 @@ vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 )
     if( u<0.0 || v<0.0 || (u+v)>1.0 ) t = -1.0;
     return vec3( t, u, v );
 }
-
-const vec3 lightpos = vec3(80.0, 65, 120.0);
-const float lightrad = 35.0;
 
 Intersection getIntersection(vec3 ro, vec3 rd) {
     Intersection hit = Intersection(false, 9999.99, vec3(0.0), ro, rd, false, -1);
@@ -174,7 +171,7 @@ Intersection getIntersection(vec3 ro, vec3 rd) {
                 hit.hit = true;
                 hit.dist = t.x;
                 hit.mat = int(vertices[indices[i]].w);
-                hit.normal = cross(normalize(v1-v0), normalize(v2-v0));
+                hit.normal = normalize(cross(normalize(v1-v0), normalize(v2-v0)));
                 hit.light = materials[hit.mat].emission > 0.0;
             }
         }
@@ -195,11 +192,10 @@ vec3 hemisphereSample(vec2 seed, vec3 normal, float roughness) {
     float phi = 2.0*3.14159*epsilon.y;
     */
     // GGX
-    float theta = atan(roughness*roughness*sqrt(epsilon.x)/sqrt(1.0-epsilon.x));
+    float theta = atan(roughness*sqrt(epsilon.x)/sqrt(1.0-epsilon.x));
     float phi = 2.0*3.14159*epsilon.y;
     
     vec3 vector = vec3(cos(phi)*cos(theta), sin(phi)*cos(theta), sin(theta));
-    
     // https://backend.orbit.dtu.dk/ws/portalfiles/portal/126824972/onb_frisvad_jgt2012_v2.pdf
     vec3 b1;
     vec3 b2;
@@ -263,7 +259,7 @@ float NDF(vec3 H, vec3 N, vec3 V, vec3 L, float roughness) {
 }
 
 float GAF(vec3 H, vec3 N, vec3 V, vec3 L, float roughness) {
-    // GGX
+    // GGX-Smith
     float width = roughness*roughness;
     float tan_theta_v = tan(acos(dot(N,V))); // this also seems wrong
     
@@ -291,9 +287,9 @@ float FEF(vec3 H, vec3 V, float ior) {
 float NEE(vec3 ro, vec4 seed) {
     float neeColor = 0.0;
     for (int i = 0; i < NEESAMPLES; i++) {
-        uint lightIndex = 3*(lowbias32(uint(i*seed.x + i*seed.y + i*seed.z)) % numLights); // Constants chosen at random
+        uint lightIndex = 3*(lowbias32(uint((i+1)*seed.x + (i+1)*seed.y*100.0 + (i+1)*seed.z*10.0)) % numLights); // Constants chosen at random
 
-        vec3 pos = triSample(vec2(seed.x*123.0*(i+1) + seed.z*81.0*(i+5), seed.y*597.0*(i+1) + seed.w*67.0*(i+3)), lightIndex);
+        vec3 pos = triSample(vec2(seed.x*13.0*(i+1) + seed.z*81.0*(i+1), seed.y*57.0*(i+1) + seed.w*67.0*(i+1)), lightIndex);
         vec3 rd = normalize(pos-ro);
         Intersection hit = getIntersection(ro, rd);
         if (hit.light) {
@@ -314,18 +310,18 @@ float calcBRDF(vec3 rd, vec3 normal, vec3 incoming, int matIndex) {
     // Todo: Only add ambient on light hit?
     // Todo: is multiplying by hit.s incorrect? Should diffuse be multiplied by 1-FEF?
     return 
-            dot(normal, incoming) +
+            dot(normal, incoming)*.5 +
             NDF(H, normal, V, incoming, mat.roughness)
             *GAF(H, normal, V, incoming, mat.roughness)
             *FEF(H, V, mat.ior)
-            /(4.0*dot(normal,V));
+            /(4.0*dot(normal,V))*.5;
     //return hit.color*(1.0-hit.s)*dot(hit.normal, outward);
     //return hit.color*clamp(dot(hit.normal, incoming), 0.0, 1.0);
 }
 
 
 #if (MODE < 3)
-const vec3 l = normalize(vec3(1.0, 1.0, -1.0));
+const vec3 lightpos = vec3(25.0, 80.0, 150.0);
 #endif
 
 void main() {
@@ -337,17 +333,18 @@ void main() {
     if (hit.hit) {
         #if (MODE == 0)
             // Half-Lambert
-            fragColor = vec4(vec3((dot(l, hit.normal)+1.0)/2.0), 1.0);
+            fragColor = vec4(vec3((dot(normalize((hit.ro + hit.rd*hit.dist*0.9999)-lightpos), hit.normal)+1.0)/2.0), 1.0);
         #elif (MODE == 1)
             // Half-Lambert with material.
-            fragColor = vec4(materials[hit.mat].diffuseColor*(dot(l, hit.normal)+1.0)/2.0, 1.0);
+            fragColor = vec4(materials[hit.mat].diffuseColor*(dot(normalize((hit.ro + hit.rd*hit.dist*0.9999)-lightpos), hit.normal)+1.0)/2.0, 1.0);
         #elif (MODE == 2)
+            vec3 l = normalize(lightpos - (hit.ro + hit.rd*hit.dist*0.9999));
             // BRDF test. Has an ambient lighting value of 0.5.
             if (hit.light) {
                 fragColor = vec4(1.0);
             }
             else {
-                fragColor = vec4(materials[hit.mat].diffuseColor*calcBRDF(hit.rd, hit.normal, reflect(rd, l), hit.mat) + materials[hit.mat].diffuseColor*0.5, 1.0);
+                fragColor = vec4(materials[hit.mat].diffuseColor*calcBRDF(hit.rd, hit.normal, l, hit.mat) + materials[hit.mat].diffuseColor*0.5, 1.0);
             }
         #elif (MODE == 3)
             // Full pathtracing.
@@ -363,8 +360,8 @@ void main() {
                 for (int i = 0; i < NUMSAMPLES; i++) {
                     vec3 incoming = hemisphereSample(
                         vec2(
-                            fragCoord.x*1283.0*(i+1) + iTime*85.0*(i+1) + rd.x*209.0,
-                            fragCoord.y*1927.0*(i+1) + iTime*23.0*(i+1) + rd.z*593.0
+                            fragCoord.x*83.0*(i+1) + iTime*85.0*(i+1),
+                            fragCoord.y*97.0*(i+1) + iTime*23.0*(i+1)
                         ),
                         hit.normal, materials[hit.mat].roughness
                     );
@@ -373,27 +370,27 @@ void main() {
                     vec3 accumulation = calcBRDF(hit.rd, hit.normal, incoming, hit.mat)
                         * materials[hit.mat].diffuseColor
                     #if NEESAMPLES > 0
-                        * NEE(ro + hit.rd*hit.dist*0.9999, vec4(fragCoord.x*8327.0*(i+1), iTime*6313.0*(i+1), fragCoord.y*4457.0*(i+1), hit.dist*451.0*(i+5) - hit.normal.z*182.0));
+                        * NEE(hit.ro + hit.rd*hit.dist*0.9999, vec4(fragCoord.x*37.0*(i+1), iTime*55.0*(i+1), fragCoord.y*47.0*(i+1), frameNumber*25.0*(i+1)));
                     #else
                         * 1.0;
                     #endif
                     int bounces = 0;
 
-                    Intersection next = getIntersection(ro + hit.rd*hit.dist*0.9999, reflect(hit.rd, incoming));
+                    Intersection next = getIntersection(hit.ro + hit.rd*hit.dist*0.9999, reflect(hit.rd, incoming));
                     while (!next.light && next.hit && bounces < MAXBOUNCES) {
                         accumulation *= calcBRDF(next.rd, next.normal, incoming, next.mat) * materials[next.mat].diffuseColor;
 
                         
                         #if NEESAMPLES > 0
-                            accumulation *= NEE(next.ro + hit.rd*hit.dist*0.9999, vec4(iTime*19.0*(i+1)*(bounces+1) + next.ro.x*1205.0*(i+1), fragCoord*5311.0*(i+1)*(bounces+1), next.rd.z*9247.0*(i+1)));
+                            accumulation *= NEE(next.ro + next.rd*next.dist*0.9999, vec4(fragCoord.x*12.0*(i+1)*(bounces+1), iTime*81.0*(i+1)*(bounces+1), fragCoord.y*17.0*(i+1)*(bounces+1), frameNumber*67.0*(i+1)*(bounces+1)));
                         #endif
 
 
                         if (bounces < MAXBOUNCES-1) {
                             incoming = hemisphereSample(
                                 vec2(
-                                    fragCoord.x*6233.0*(i+1) + iTime*25.0*(i+1)*(bounces+1) + next.ro.z*1203.0*(bounces+1),
-                                    fragCoord.y*2847.0*(i+1)*(bounces+1) + next.rd.x*485.0*(i+1)*(bounces+1) + iTime*(i+1)*(bounces+1)
+                                    fragCoord.x*63.0*(i+1)*(bounces+1) + iTime*25.0*(i+1)*(bounces+1),
+                                    fragCoord.y*87.0*(i+1)*(bounces+1) + frameNumber*41.0*(i+1)*(bounces+1)
                                 ),
                                 next.normal, materials[next.mat].roughness
                             );
