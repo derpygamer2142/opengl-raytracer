@@ -1,6 +1,11 @@
 #version 460 core
+// Extensions to allow std430 layout
+// AMD
 #extension GL_EXT_scalar_block_layout : enable
+// Nvidia
 #extension GL_NV_uniform_buffer_std430_layout : enable
+// Intel
+#extension GL_ARB_enhanced_layouts : enable
 
 #define fragCoord gl_FragCoord.xy
 #define MAX_VERTICES 2048

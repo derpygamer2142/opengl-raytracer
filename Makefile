@@ -11,6 +11,7 @@ clean:
 
 # Linux
 build/main: src/main.cpp src/shader.cpp src/shader.h src/fileutil.h src/fileutil.cpp src/modelloader.cpp
+	mkdir -p build
 	g++ -I./include \
 	src/main.cpp src/shader.cpp src/fileutil.cpp src/modelloader.cpp \
 	include/glad.c include/stb_image.cpp \
@@ -20,6 +21,7 @@ build/main: src/main.cpp src/shader.cpp src/shader.h src/fileutil.h src/fileutil
 
 # Windows
 build/main.exe: src/main.cpp src/shader.cpp src/shader.h src/fileutil.h src/fileutil.cpp src/modelloader.cpp
+	mkdir -p build
 	x86_64-w64-mingw32-g++ -D GLFW_DLL \
 		-I./include \
 		src/main.cpp src/fileutil.cpp src/shader.cpp src/modelloader.cpp \
