@@ -57,6 +57,10 @@ void Texture::bindToSlot(unsigned int slot) {
 
 Framebuffer::Framebuffer(int width, int height, unsigned int slot, unsigned int texSlot) {
 	glGenFramebuffers(1, &this->frameBuffer);
+    if (this->frameBuffer < 0) {
+        std::cerr << "Failed to generate framebuffer " << slot << std::endl;
+        exit(1);
+    }
 	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 	
 	glGenTextures(1, &this->renderTexture);

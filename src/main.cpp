@@ -208,6 +208,7 @@ int main() {
 
 		//glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
+		glFlush();
 		shaderProgram.use();
 		shaderProgram.setUniform1f("iTime", glfwGetTime());
 		shaderProgram.setUniform2f("iResolution", windowWidth, windowHeight);
@@ -249,6 +250,7 @@ int main() {
 		secondaryProgram.resetRenderTarget(static_cast<int>(windowWidth), static_cast<int>(windowHeight));
 		//glClear(GL_COLOR_BUFFER_BIT);
 
+		glFlush();
 		secondaryProgram.use();
 		// framebuffer0.bindToTextureSlot(0);
 		secondaryProgram.setUniform1i("inputTexture", swap ? 0 : 1);
