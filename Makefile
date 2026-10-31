@@ -1,4 +1,4 @@
-all: build/shaders build/main build/main.exe
+all: build/main build/main.exe
 	mkdir -p build
 	rm -rf build/assets
 	cp -r src/assets build
@@ -17,6 +17,8 @@ build/main: src/main.cpp src/shader.cpp src/shader.h src/fileutil.h src/fileutil
 	include/glad.c include/stb_image.cpp \
 	-lglfw3 -lGL -lX11 -lpthread -lXrandr -lXi -ldl \
 	-o build/main
+	
+	chmod +x build/main
 
 
 # Windows
